@@ -81,7 +81,7 @@
             overflow-wrap: break-word;
             max-width: 100%;
             box-sizing: border-box;
-            background-color: #7cfc00; /* lawngreen */
+            background-color: lawngreen; /* lawngreen */
             color: #000000;            /* black text */
             border: 1px solid #aaa;
             padding: 10px;
@@ -90,7 +90,7 @@
         }
         #hand {
             position: absolute;
-            font-size: 40px; /* enlarged */
+            font-size: 60px; /* enlarged */
             transform: rotate(45deg);
             transition: left 0.1s ease, top 0.1s ease, transform 0.5s ease, opacity 0.5s ease 0.5s;
             animation: float 2s ease-in-out infinite; /* smoother float */
@@ -109,7 +109,7 @@
         }
         #cursor {
             display: inline-block;
-            width: 5px;               /* thick cursor */
+            width: 8px;               /* thick cursor */
             height: 1.3em;
             background: #ff0000;      /* red */
             vertical-align: middle;
@@ -649,7 +649,7 @@
                     if (!isAnimating) return;
                     try {
                         const canvas = await html2canvas(output, {
-                            backgroundColor: '#7cfc00', // lawngreen
+                            backgroundColor: 'lawngreen', // lawngreen
                             scale: 1
                         });
                         recordedFrames.push({ canvas });
@@ -870,7 +870,7 @@
                     width: width,
                     height: height,
                     repeat: 0,
-                    transparent: '#7cfc00' // lawngreen
+                    transparent: '#lawngreen' // lawngreen
                 });
 
                 recordedFrames.forEach(({ canvas }) => {
@@ -934,7 +934,7 @@
                 (async () => {
                     for (let i = 0; i < recordedFrames.length; i++) {
                         const frame = recordedFrames[i].canvas;
-                        ctx.fillStyle = '#7cfc00'; // lawngreen
+                        ctx.fillStyle = '#lawngreen'; // lawngreen
                         ctx.fillRect(0, 0, width, height);
                         ctx.drawImage(frame, 0, 0, width, height);
                         await delay(1000 / FRAME_RATE);
@@ -949,7 +949,7 @@
             temp.width = width;
             temp.height = height;
             const ctx = temp.getContext('2d');
-            ctx.fillStyle = '#7cfc00'; // lawngreen
+            ctx.fillStyle = '#lawngreen'; // lawngreen
             ctx.fillRect(0, 0, width, height);
             ctx.drawImage(src, 0, 0, width, height);
             return temp;
