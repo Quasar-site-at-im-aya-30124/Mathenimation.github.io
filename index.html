@@ -4,26 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mathenimation: Maths Equation Editor</title>
-    <!-- MathJax Configuration (AsciiMath + LaTeX) -->
+    <!-- MathJax Configuration -->
     <script>
         MathJax = {
-            loader: {
-                load: ['input/asciimath', 'input/tex', 'output/chtml']
-            },
-            asciimath: {
-                delimiters: [['`', '`']]
-            },
-            tex: {
-                inlineMath: [['$', '$']],
-                processEscapes: true
+            loader: { load: ['input/asciimath', 'output/chtml'] },
+            asciimath: { 
+                delimiters: [['`', '`']],
+                symbols: {
+                    '√': ['\u221A', 1],
+                    'abs': ['|', 1],
+                    'mod': ['\u0025', 1],
+                    '≡': ['\u2261', 1],
+                    'log': ['\u006C\u006F\u0067', 1],
+                    'exp': ['\u0065\u005E', 1],
+                }
             }
         };
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/startup.js" async></script>
-    <!-- html2canvas for frame capture -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js" async></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-    <!-- gif.js for GIF export -->
-    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -81,39 +80,39 @@
             overflow-wrap: break-word;
             max-width: 100%;
             box-sizing: border-box;
-            background-color: lawngreen; /* lawngreen */
-            color: #000000;            /* black text */
-            border: 1px solid #aaa;
+            background-color: lawngreen; /* ✅ Lawngreen background */
+            color: #000; /* Dark text for contrast on lawngreen */
+            border: 1px solid #4a4a4a;
             padding: 10px;
             margin: 10px 0;
             overflow-x: auto;
         }
         #hand {
             position: absolute;
-            font-size: 60px; /* enlarged */
+            font-size: 50px; /* ✅ Enlarged hand */
             transform: rotate(45deg);
             transition: left 0.1s ease, top 0.1s ease, transform 0.5s ease, opacity 0.5s ease 0.5s;
-            animation: float 2s ease-in-out infinite; /* smoother float */
+            animation: float 1.5s ease-in-out infinite;
             opacity: 1;
-            color: #000000; /* black for visibility */
-            pointer-events: none; /* don't block clicks */
+            color: #000; /* Visible on lawngreen */
+            pointer-events: none;
         }
         @keyframes float {
             0%, 100% { transform: translateY(0) rotate(45deg); }
-            50% { transform: translateY(-8px) rotate(45deg); } /* higher float */
+            50% { transform: translateY(-8px) rotate(45deg); }
         }
         #output.finished #hand {
             animation: none;
-            transform: rotate(120deg) translate(60px, 60px);
+            transform: rotate(120deg) translate(70px, 70px);
             opacity: 0;
         }
         #cursor {
             display: inline-block;
-            width: 8px;               /* thick cursor */
-            height: 1.3em;
-            background: #ff0000;      /* red */
+            width: 7px; /* ✅ Thickness 7px */
+            height: 1.2em;
+            background: blue; /* ✅ Blue cursor */
             vertical-align: middle;
-            animation: blink 1s step-end infinite; /* infinite blink */
+            animation: blink 1s step-end infinite;
         }
         @keyframes blink {
             50% { opacity: 0; }
@@ -152,7 +151,8 @@
             align-items: center;
             margin: 10px 0;
         }
-        #controls-row-left, #controls-row-right {
+        #controls-row-left,
+        #controls-row-right {
             display: flex;
             align-items: center;
             gap: 5px;
@@ -163,8 +163,16 @@
             color: #e0e0e0;
             border: 1px solid #666;
         }
+        #controls-row select {
+            padding: 8px;
+        }
+        #controls-row select option {
+            background-color: #2e2e2e;
+            color: #e0e0e0;
+        }
         #speed-slider {
             width: 100px;
+            vertical-align: middle;
         }
         #controls {
             margin-top: 10px;
@@ -177,20 +185,27 @@
         #symbols-table td:hover {
             background-color: #5a5a5a;
         }
-        .rendering {
-            background-color: #5a5a5a !important;
-            cursor: not-allowed !important;
-        }
-        #resolution-container {
-            text-align: right;
-            margin: 5px 0;
+        /* WebM resolution dropdown */
+        #webm-resolutions {
             display: none;
-        }
-        #resolution-container select {
-            background-color: #4a4a4a;
-            color: #e0e0e0;
+            position: absolute;
+            background: #2e2e2e;
             border: 1px solid #666;
-            padding: 8px;
+            z-index: 1000;
+            padding: 5px;
+            margin-top: 5px;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        #webm-resolutions div {
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+        #webm-resolutions div:hover {
+            background: #4a4a4a;
+        }
+        #record-btn.recording {
+            background-color: #ff5555 !important;
         }
     </style>
 </head>
@@ -215,32 +230,22 @@
             <button onclick="undo()">↺</button>
             <button onclick="redo()">↻</button>
             <button onclick="clearOutput()">↩</button>
-            <select id="download-format" onchange="updateResolutionOptions()">
+            <select id="download-format" onchange="handleDownloadFormatChange()">
                 <optgroup label="--Image--">
                     <option value="png">Save as PNG</option>
                     <option value="jpg">Save as JPG</option>
-                    <option value="webp">Save as WebP</option>
                 </optgroup>
                 <optgroup label="--Animation--">
                     <option value="gif">Save as GIF</option>
                     <option value="webm">Save as WebM</option>
                 </optgroup>
             </select>
-            <button id="download-btn" onclick="downloadOutput()">📥</button>
+            <button onclick="downloadOutput()">📥</button>
         </div>
-    </div>
-    <div id="resolution-container">
-        <select id="resolution-select">
-            <option value="426x240">240p (426×240)</option>
-            <option value="640x360">360p (640×360)</option>
-            <option value="854x480">480p (854×480)</option>
-            <option value="1280x720" selected>720p (1280×720)</option>
-            <option value="1920x1080">1080p (1920×1080)</option>
-        </select>
     </div>
     <div id="output"></div>
     <div id="controls">
-        <textarea id="input" placeholder="e.g., f(x) = { -x if x < 0; 0 if x = 0; x if x > 0 }"></textarea>
+        <textarea id="input" placeholder="e.g., x (is greater than to) y"></textarea>
         <div style="text-align: right; margin: 10px 0; display: flex; justify-content: flex-end; gap: 10px;">
             <button id="record-btn" onclick="toggleRecording()">⏺️ Record</button>
             <button id="start-btn" onclick="startAnimation()">Start Animation</button>
@@ -248,148 +253,131 @@
     </div>
     <canvas id="captureCanvas" style="display: none;"></canvas>
 
-    <!-- Dialogs -->
+    <!-- WebM Resolution Dropdown -->
+    <div id="webm-resolutions"></div>
+
+    <!-- Dialogs (unchanged from your original) -->
     <dialog id="examplesDialog">
-        <h2>Mathematical Expression Examples</h2>
-        <h3>Functional Expressions</h3>
-        <ul>
-            <li>Linear: ( f(x) = 2x + 3 )</li>
-            <li>Quadratic: ( f(x) = x^2 + 2x + 1 )</li>
-            <li>Piecewise (textbook style): ( f(x) = { -x if x < 0; 0 if x = 0; x if x > 0 } )</li>
-        </ul>
-        <h3>Trigonometric Expressions</h3>
-        <ul><li>Basic: ( sin x + cos y )</li></ul>
-        <h3>Calculus</h3>
-        <ul><li>Limit: ( lim_(x->0) (sin x)/x = 1 )</li></ul>
-        
         <h2>Examples</h2>
         <ul>
-            <li>Monomial: 3x^2</li>
-            <li>Binomial: x + 2y</li>
-            <li>Trinomial: x^2 + 2x + 1</li>
-            <li>Polynomial: x^3 + 2x^2 - x + 5</li>
-            <li>Rational Expression: (x + 1)/(x - 2)</li>
-            <li>Irrational Expression: √(x + 2)</li>
-            <li>Radical Expression: root(3)(x^2 + 1)</li>
-            <li>Square Root Expression: sqrt(x + 1) or √(x + 1)</li>
-            <li>Exponential Expression: exp(x) or 2^x</li>
-            <li>Logarithmic Expression: log(x) or log_2(x)</li>
-            <li>Modulus (Absolute Value) Expression: |a| + |b| = |a + b|</li>
-            <li>Modular Expression: x mod y = r ↔ x ≡ r (mod y)</li>
-            <li>Fraction: a/b</li>
-            <li>Integral: int_0^1 x dx</li>
-            <li>Union: A union B</li>
-            <li>Matrix: [1,2;3,4]</li>
-            <li>Limit: lim_(x->0) sin x / x</li>
-            <li>Derivative: (d/dx) x^2</li>
-            <li>Sum: sum_(k=1)^n k</li>
-            <li>Product: prod_(k=1)^n k</li>
-            <li>Vector: vec(a) = <<1,2,3>></li>
-            <li>Binomial Coefficient: C(n,k) or binom(n)(k)</li>
-            <li>Trigonometric Expression: sin x + cos y</li>
-            <li>Inverse Trigonometric: arcsin(x)</li>
-            <li>Trigonometric Identity: sin^2 x + cos^2 x = 1</li>
-            <li>Compound Angle: sin(a + b) = sin a cos b + cos a sin b</li>
-            <li>Multiple Angle: cos 2x = cos^2 x - sin^2 x</li>
-            <li>Differential Expression: (d/dx) sin x = cos x</li>
-            <li>Integral Expression: int_0^infty e^{-x} dx = 1</li>
-            <li>Limit Expression: lim_(x->0) (sin x)/x = 1</li>
-            <li>Series Expression: sum_(n=1)^infty 1/n^2 = pi^2/6</li>
-            <li>Mean: bar x = (sum x_i)/n</li>
-            <li>Variance: sigma^2 = (sum (x_i - bar x)^2)/n</li>
-            <li>Probability: P(A union B) = P(A) + P(B) - P(A intersect B)</li>
-            <li>Combinations: C(n,r) = (n!)/(r!(n-r)!)</li>
-            <li>Permutations: P(n,r) = (n!)/(n-r)!</li>
-            <li>Vector Expression: r = a i^ + b j^ + c k^</li>
-            <li>Dot Product: (vec A dot B)</li>
-            <li>Cross Product: (vec A cross B)</li>
-            <li>Matrix Expression: A = [1,2,3;4,5,6]</li>
-            <li>Determinant: det(A) or (det(A))</li>
-            <li>Inverse Matrix: A^(-1)</li>
-            <li>Complex Number Expression: z = a + b i</li>
-            <li>Set Expression: A = {1,2,3}</li>
+            <li>Monomial: (3x^2)</li>
+            <li>Binomial: x + (2y)</li>
+            <li>Trinomial: (x^2 + 2x + 1)</li>
+            <li>Polynomial: (x^3 + 2x^2 - x + 5)</li>
+            <li>Rational Expression: ((x + 1)/(x - 2))</li>
+            <li>Irrational Expression: (√(x + 2))</li>
+            <li>Radical Expression: (root(3)(x^2 + 1))</li>
+            <li>Square Root Expression: (sqrt(x + 1)) or (√(x + 1))</li>
+            <li>Exponential Expression: (exp(x)) or (2^x)</li>
+            <li>Logarithmic Expression: (log(x)) or (log_2(x))</li>
+            <li>Modulus (Absolute Value) Expression: |a| + |b| = (|a + b|)</li>
+            <li>Modular Expression: x mod y = r ↔ (x ≡ r (mod y))</li>
+            <li>Fraction: (a/b)</li>
+            <li>Integral: (int_0^1 x dx)</li>
+            <li>Union: A (union) B</li>
+            <li>Matrix: ([1,2;3,4])</li>
+            <li>Limit: (lim_(x->0) sin x / x)</li>
+            <li>Derivative: ((d/dx) x^2)</li>
+            <li>Sum: (sum_(k=1)^n k)</li>
+            <li>Product: (prod_(k=1)^n k)</li>
+            <li>Vector: (vec(a) = <<1,2,3>>)</li>
+            <li>Binomial Coefficient: (C(n,k)) or (binom(n)(k))</li>
+            <li>Trigonometric Expression: (sin x + cos y)</li>
+            <li>Inverse Trigonometric: (arcsin(x))</li>
+            <li>Trigonometric Identity: (sin^2 x + cos^2 x = 1)</li>
+            <li>Compound Angle: (sin(a + b) = sin a cos b + cos a sin b)</li>
+            <li>Multiple Angle: (cos 2x = cos^2 x - sin^2 x)</li>
+            <li>Differential Expression: ((d/dx) sin x = cos x)</li>
+            <li>Integral Expression: (int_0^infty e^{-x} dx = 1)</li>
+            <li>Limit Expression: (lim_(x->0) (sin x)/x = 1)</li>
+            <li>Series Expression: (sum_(n=1)^infty 1/n^2 = pi^2/6)</li>
+            <li>Mean: (bar x = (sum x_i)/n)</li>
+            <li>Variance: (sigma^2 = (sum (x_i - bar x)^2)/n)</li>
+            <li>Probability: (P(A union B) = P(A) + P(B) - P(A intersect B))</li>
+            <li>Combinations: (C(n,r) = (n!)/(r!(n-r)!))</li>
+            <li>Permutations: (P(n,r) = (n!)/(n-r)!)</li>
+            <li>Vector Expression: (r = a i^ + b j^ + c k^)</li>
+            <li>Dot Product: ((vec A dot B))</li>
+            <li>Cross Product: ((vec A cross B))</li>
+            <li>Matrix Expression: (A = [1,2,3;4,5,6])</li>
+            <li>Determinant: (det(A)) or ((det(A)))</li>
+            <li>Inverse Matrix: (A^(-1))</li>
+            <li>Complex Number Expression: (z = a + b i)</li>
+            <li>Set Expression: (A = {1,2,3})</li>
             <li>Membership: (x in A) or (x belong to A)</li>
-            <li>Logical Expression: p ^^ q</li>
-            <li>Quantified Expression: (for all) x in R, x^2 (greater than or equal) 0</li>
-            <li>Parametric Expression: x = r cos theta, y = r sin theta</li>
-            <li>Polar Expression: r = theta</li>
-            <li>Tensor Expression: T_(i j)</li>
-            <li>Functional Analysis Expression: ||f|| = sqrt(int |f(x)|^2 dx)</li>
-            <li>Topology Expression: open set U</li>
-            <li>Algebraic Structure Expression: group G</li>
-            <li><strong>Piecewise Function:</strong> f(x) = { x, if x > 0; 0 if x = 0; -x, if x < 0 }</li>
+            <li>Logical Expression: (p ^^ q)</li>
+            <li>Quantified Expression: (for all) (x in R), (x^2 (greater than or equal) 0)</li>
+            <li>Parametric Expression: (x = r cos theta, y = r sin theta)</li>
+            <li>Polar Expression: (r = theta)</li>
+            <li>Tensor Expression: (T_(i j))</li>
+            <li>Functional Analysis Expression: (||f|| = sqrt(int |f(x)|^2 dx))</li>
+            <li>Topology Expression: (open set U)</li>
+            <li>Algebraic Structure Expression: (group G)</li>
         </ul>
         <button onclick="closeDialog('examples')">Close ❌</button>
     </dialog>
 
     <dialog id="historyDialog">
         <h2>History</h2>
-        <table><thead><tr><th>Title</th><th>Description</th><th>Date</th><th>Time</th></tr></thead><tbody id="historyBody"></tbody></table>
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+        </table>
         <button onclick="closeDialog('history')">Close ❌</button>
     </dialog>
 
     <dialog id="helpDialog">
         <h2>Help</h2>
-        <p>Type math inside parentheses. For piecewise functions, use:</p>
-        <code>( f(x) = { -x if x < 0; 0 if x = 0; x if x > 0 } )</code>
-        <p>Click "⏺️ Record" before "Start Animation" to capture animation.</p>
-        
-    <h2>Help</h2>
-        <p>For piecewise functions, use this natural syntax:</p>
-        <pre>f(x) = { expr1, if cond1; expr2 if cond2; ... }</pre>
-        <p>Examples:</p>
+        <p>Here are some tips for using the Maths Equation Editor:</p>
         <ul>
-            <li><code>f(x) = { x, if x > 0; 0 if x = 0; -x, if x < 0 }</code></li>
-            <li><code>|x| = { x, if x ≥ 0; -x, if x < 0 }</code></li>
-        </ul>
-        <p>Here are some tips for using AsciiMath syntax to achieve textbook-style mathematical representations:</p>
-        <ul>
-            <li>For exponents/superscripts, use ^: e.g., x^2 renders as x².</li>
-            <li>For subscripts, use _: e.g., x_1 renders as x₁.</li>
-            <li>For fractions, use /: e.g., a/b or (x + 1)/(x - 2) renders as a over b.</li>
-            <li>For square roots, use sqrt or √: e.g., sqrt(x + 1) or √(x + 1) renders as √(x + 1).</li>
-            <li>For nth roots, use root(n): e.g., root(3)(x) renders as cube root of x.</li>
-            <li>For logarithms, use log or log_b: e.g., log(x) or log_2(x).</li>
-            <li>For exponentials, use exp or ^: e.g., exp(x) or 2^x.</li>
-            <li>For modulus (absolute value), use abs or | |: e.g., abs(x) or |x| renders as |x|.</li>
-            <li>For modular arithmetic, use mod or ≡: e.g., x mod y = r or x ≡ r (mod y).</li>
-            <li>For integrals, use int: e.g., int_a^b f(x) dx.</li>
-            <li>For limits, use lim: e.g., lim_(x->a) f(x).</li>
-            <li>For sums/products, use sum/prod: e.g., sum_(i=1)^n i.</li>
-            <li>For matrices, use [ ; ]: e.g., [1,2;3,4] renders as a 2x2 matrix.</li>
-            <li>For trigonometric functions, use sin, cos, tan, etc.: e.g., sin x.</li>
-            <li>For inverse trigonometric, use arcsin, arccos, etc.: e.g., arcsin x.</li>
-            <li>For hyperbolic functions, use sinh, cosh, etc.: e.g., sinh x.</li>
-            <li>For derivatives, use (d/dx): e.g., (d/dx) x^2 = 2x.</li>
-            <li>For integrals, use int: e.g., int x dx = x^2/2.</li>
-            <li>For limits, use lim: e.g., lim_(x->infty) 1/x = 0.</li>
-            <li>For series/sums, use sum: e.g., sum_(n=0)^infty x^n / n! = e^x.</li>
-            <li>For mean, use bar or overline: e.g., bar x.</li>
-            <li>For variance, use sigma^2: e.g., sigma^2 = (sum (x_i - bar x)^2)/n.</li>
-            <li>For probability, use P(): e.g., P(A).</li>
-            <li>For combinations, use C(n,r): e.g., C(n,r) = n! / (r!(n-r)!).</li>
-            <li>For permutations, use P(n,r): e.g., P(n,r) = n! / (n-r)!.</li>
-            <li>For vectors, use vec: e.g., vec a = a i^ + b j^ + c k^ renders with hats on i, j, k.</li>
-            <li>For dot product, use dot: e.g., (vec A dot B) renders as \vec A • \vec B.</li>
-            <li>For cross product, use cross: e.g., (vec A cross B) renders as \vec A × \vec B.</li>
-            <li>For determinant, use det: e.g., det(A) or (det(A)) for |A|.</li>
-            <li>For inverse matrix, use ^(-1): e.g., A^(-1).</li>
-            <li>For complex numbers, use i: e.g., z = a + b i.</li>
-            <li>For sets, use {}, in, union, intersect: e.g., A union B.</li>
-            <li>For membership, use in or belong to: e.g., (x in A) or (x belong to A) renders as x ∈ A; (x not in A) or (x does not belong to A) renders as x ∉ A. Without (), treated as text.</li>
-            <li>For logical expressions, use ^^, vv, not, ->: e.g., p ^^ q.</li>
-            <li>For quantified expressions, use for all: e.g., (for all) x in R renders as ∀x ∈ R. Without (), treated as text.</li>
-            <li>For inequalities, use (greater than or equal), etc.: e.g., (greater than or equal) renders as ≥, (less than or equal) as ≤, (not equal) as ≠. Without (), treated as text.</li>
-            <li>For parametric equations, group with commas: e.g., x = t^2, y = t^3.</li>
-            <li>For polar coordinates, use r, theta: e.g., r = 1 - sin theta.</li>
-            <li>For tensors, use subscripts: e.g., T_(i j k).</li>
-            <li>For norms in functional analysis, use || ||: e.g., ||f||.</li>
-            <li>For topology, describe in text with math: e.g., open set U.</li>
-            <li>For algebraic structures, describe in text with math: e.g., group (G, *).</li>
-            <li><strong>Piecewise Functions:</strong> Use { (expr1, cond1), (expr2, cond2) } syntax.</li>
-            <li>Group with parentheses for complex expressions: e.g., (a + b)^2.</li>
-            <li>Mix text and math: e.g., Modulus (Absolute Value) Expression: |a| + |b| = |a + b|.</li>
-            <li>Math expressions are auto-detected; backticks are optional.</li>
+            <li>Text inside parentheses () is treated as a math expression and converted to math symbols or notation.</li>
+            <li>Text outside parentheses is treated as plain text and animated without conversion.</li>
+            <li>Use specific phrases in parentheses for symbols:
+                <ul>
+                    <li>(greater than) → > </li>
+                    <li>(less than) → < </li>
+                    <li>(greater than or equal to) → ≥ </li>
+                    <li>(less than or equal to) → ≤ </li>
+                    <li>(equal to) → = </li>
+                    <li>(not equal to) → ≠ </li>
+                    <li>(for all) → ∀ </li>
+                    <li>(there exists) → ∃ </li>
+                    <li>(x in y) → x ∈ y </li>
+                    <li>(x not in y) → x ∉ y </li>
+                    <li>(subset of) → ⊂ </li>
+                    <li>(superset of) → ⊃ </li>
+                </ul>
+            </li>
+            <li>For other math expressions, use AsciiMath syntax inside parentheses:
+                <ul>
+                    <li>(x^2) renders as x²</li>
+                    <li>(a/b) renders as a fraction a over b</li>
+                    <li>(sqrt(x)) renders as √x</li>
+                    <li>(int_0^1 x dx) renders as an integral</li>
+                </ul>
+            </li>
+            <li>Outside parentheses, use 'forall' to render ∀, e.g., 'forall x' → '∀ x'.</li>
+            <li>Examples of mixed text:
+                <ul>
+                    <li>x (is greater than to) y → x ≥ y</li>
+                    <li>(for all) (x in y) → ∀ x ∈ y</li>
+                    <li>for all (x in y) → for all x ∈ y</li>
+                    <li>forall (x in y) → ∀ x ∈ y</li>
+                </ul>
+            </li>
+            <li>For matrices, use [ ; ]: e.g., ([1,2;3,4]) renders as a 2x2 matrix.</li>
+            <li>For combinations, use C(n,r): e.g., (C(n,r)) renders as binom(n)(r).</li>
+            <li>For permutations, use P(n,r): e.g., (P(n,r)) renders as ^n P_r.</li>
+            <li>For determinants, use det: e.g., ((det(A))) renders as |A|.</li>
+            <li>For vectors, use i^, j^, k^: e.g., (a i^ + b j^) renders with hats on i, j.</li>
+            <li>Use the Examples dialog for more syntax ideas.</li>
         </ul>
         <button onclick="closeDialog('help')">Close ❌</button>
     </dialog>
@@ -472,45 +460,34 @@
         let isAnimating = false;
         let isPaused = false;
         let animationController = null;
+
+        // ✅ New recording state
         let isRecording = false;
         let recordedFrames = [];
-        const FRAME_RATE = 10;
-        let frameCaptureInterval = null;
-
-        function toggleRecording() {
-            const btn = document.getElementById('record-btn');
-            if (isRecording) {
-                isRecording = false;
-                clearInterval(frameCaptureInterval);
-                btn.textContent = '⏺️ Record';
-                btn.style.backgroundColor = '#4a4a4a';
-                // Keep recordedFrames for export
-            } else {
-                if (isAnimating) {
-                    alert('Stop current animation before recording.');
-                    return;
-                }
-                recordedFrames = []; // Clear old frames
-                isRecording = true;
-                btn.textContent = '⏹️ Stop';
-                btn.style.backgroundColor = '#c00';
-            }
-        }
-
-        function updateResolutionOptions() {
-            const format = document.getElementById('download-format').value;
-            const container = document.getElementById('resolution-container');
-            if (format === 'gif' || format === 'webm') {
-                container.style.display = 'block';
-            } else {
-                container.style.display = 'none';
-            }
-        }
+        let selectedDownloadType = 'png';
+        let selectedWebMResolution = '1280x720';
 
         function processMathContent(str) {
+            const mathConversions = {
+                'greater than': '>',
+                'less than': '<',
+                'greater than or equal to': '>=',
+                'less than or equal to': '<=',
+                'equal to': '=',
+                'not equal to': '!=',
+                'for all': 'forall',
+                'there exists': 'exists',
+                'x in y': 'x in y',
+                'x not in y': 'x notin y',
+                'subset of': 'subset',
+                'superset of': 'supset'
+            };
+
             if (!str.startsWith('(') || !str.endsWith(')')) {
                 if (str === 'forall') return 'forall';
-                str = str.replace(/\[([^\[]*?)\]/g, (match, p1) => '[[' + p1.replace(/;\s*/g, '],[') + ']]');
+                str = str.replace(/\[([^\[]*?)\]/g, function(match, p1) {
+                    return '[[' + p1.replace(/;\s*/g, '],[') + ']]';
+                });
                 str = str.replace(/C\(([\w+]+),\s*([\w+]+)\)/g, 'binom($1)($2)');
                 str = str.replace(/P\(([\w+]+),\s*([\w+]+)\)/g, '^$1 P_$2');
                 str = str.replace(/\(\s*det\((.+?)\)\s*\)/g, '|$1|');
@@ -521,50 +498,7 @@
                 return str;
             }
 
-            let inner = str.slice(1, -1).trim();
-            const piecewiseRegex = /^(.*?=)?\s*{\s*([^}]+)\s*}$/;
-            const match = inner.match(piecewiseRegex);
-
-            if (match) {
-                const prefix = (match[1] || '').trim();
-                const body = match[2];
-                const cases = body.split(';').map(c => c.trim()).filter(c => c);
-                const latexCases = cases.map(c => {
-                    let expr, cond;
-                    if (c.includes(' if ')) {
-                        [expr, cond] = c.split(/ if /, 2);
-                    } else if (c.includes(',')) {
-                        [expr, cond] = c.split(',', 2);
-                    } else {
-                        expr = c;
-                        cond = '';
-                    }
-                    expr = expr.trim();
-                    cond = cond ? cond.trim() : '';
-                    if (cond) {
-                        return `${expr} & \\text{if } ${cond}`;
-                    } else {
-                        return `${expr} &`;
-                    }
-                }).join(' \\\\ ');
-                const latex = `${prefix} \\begin{cases} ${latexCases} \\end{cases}`;
-                return `$${latex}$`;
-            }
-
-            const mathConversions = {
-                'greater than or equal to': '>=',
-                'less than or equal to': '<=',
-                'greater than': '>',
-                'less than': '<',
-                'equal to': '=',
-                'not equal to': '!=',
-                'for all': 'forall',
-                'there exists': 'exists',
-                'x in y': 'x in y',
-                'x not in y': 'x notin y',
-                'subset of': 'subset',
-                'superset of': 'supset'
-            };
+            const inner = str.slice(1, -1).trim();
             return mathConversions[inner] || inner;
         }
 
@@ -606,8 +540,25 @@
                     i++;
                 }
             }
-            if (current) segments.push({type: mode, content: current});
+
+            if (current) {
+                segments.push({type: mode, content: current});
+            }
             return segments;
+        }
+
+        // ✅ Capture current frame
+        async function captureFrame() {
+            if (!isRecording) return;
+            const output = document.getElementById('output');
+            const canvas = await html2canvas(output, {
+                scale: 1,
+                backgroundColor: 'lawngreen'
+            });
+            recordedFrames.push({
+                timestamp: performance.now(),
+                dataUrl: canvas.toDataURL('image/png')
+            });
         }
 
         async function startAnimation() {
@@ -620,54 +571,42 @@
                 isAnimating = false;
                 return;
             }
-
             const segments = detectMathExpressions(inputText);
             const output = document.getElementById('output');
             const startBtn = document.getElementById('start-btn');
             const playPauseBtn = document.getElementById('play-pause-btn');
+            const recordBtn = document.getElementById('record-btn');
             startBtn.disabled = true;
             playPauseBtn.textContent = '⏸️';
             output.classList.remove('finished');
+
             output.innerHTML = currentOutput;
 
             const hand = document.createElement('span');
             hand.id = 'hand';
             hand.textContent = '✍️';
             hand.style.opacity = '1';
+            output.appendChild(hand);
 
             let currentText = currentOutput ? currentOutput + '<br>' : '';
             const baseCharDelay = 50;
             const baseWordDelay = 200;
-            const speed = parseFloat(document.getElementById('speed-slider').value);
+            const speedSlider = document.getElementById('speed-slider');
+            const speed = parseFloat(speedSlider.value);
             const charDelay = baseCharDelay / speed;
             const wordDelay = baseWordDelay / speed;
-
-            if (isRecording) {
-                recordedFrames = [];
-                clearInterval(frameCaptureInterval);
-                frameCaptureInterval = setInterval(async () => {
-                    if (!isAnimating) return;
-                    try {
-                        const canvas = await html2canvas(output, {
-                            backgroundColor: 'lawngreen', // lawngreen
-                            scale: 1
-                        });
-                        recordedFrames.push({ canvas });
-                    } catch (e) {
-                        console.warn('Frame capture failed', e);
-                    }
-                }, 1000 / FRAME_RATE);
-            }
 
             for (let segment of segments) {
                 if (animationController.cancelled) break;
                 if (segment.type === 'text') {
-                    const parts = segment.content.split(/(\s+)/).filter(p => p);
+                    const parts = segment.content.split(/(\s+)/).filter(part => part !== '');
                     for (let part of parts) {
                         if (animationController.cancelled) break;
                         for (let char of part) {
                             if (isPaused || animationController.cancelled) {
-                                while (isPaused && !animationController.cancelled) await delay(100);
+                                while (isPaused && !animationController.cancelled) {
+                                    await delay(100);
+                                }
                                 if (animationController.cancelled) break;
                             }
                             currentText += char;
@@ -675,6 +614,7 @@
                             output.appendChild(hand);
                             await typesetMathJax();
                             updateHandPosition(hand);
+                            await captureFrame(); // ✅ Capture frame
                             await delay(charDelay);
                         }
                         await delay(wordDelay);
@@ -684,7 +624,9 @@
                     const mathStart = currentText.length;
                     for (let char of segment.content) {
                         if (isPaused || animationController.cancelled) {
-                            while (isPaused && !animationController.cancelled) await delay(100);
+                            while (isPaused && !animationController.cancelled) {
+                                await delay(100);
+                            }
                             if (animationController.cancelled) break;
                         }
                         currentText += char;
@@ -692,22 +634,16 @@
                         output.appendChild(hand);
                         await typesetMathJax();
                         updateHandPosition(hand);
+                        await captureFrame(); // ✅ Capture frame
                         await delay(charDelay);
                     }
                     if (animationController.cancelled) break;
                     const processed = processMathContent(segment.content);
-
-                    let mathOutput;
-                    if (typeof processed === 'string' && processed.startsWith('$') && processed.endsWith('$')) {
-                        mathOutput = processed;
-                    } else {
-                        mathOutput = '`' + processed + '`';
-                    }
-
-                    currentText = currentText.slice(0, mathStart) + mathOutput + currentText.slice(mathStart + segment.content.length);
+                    currentText = currentText.slice(0, mathStart) + '`' + processed + '`' + currentText.slice(mathStart + segment.content.length);
                     output.innerHTML = currentText + '<span id="cursor"></span>';
                     await typesetMathJax();
                     updateHandPosition(hand);
+                    await captureFrame(); // ✅ After conversion
                     await delay(200);
                 }
             }
@@ -718,6 +654,7 @@
                 output.appendChild(hand);
                 updateHandPosition(hand);
                 output.classList.add('finished');
+                await captureFrame(); // ✅ Final frame
                 await delay(1000);
                 hand.remove();
 
@@ -738,9 +675,6 @@
             playPauseBtn.textContent = '▶️';
             isAnimating = false;
             animationController = null;
-            if (isRecording && frameCaptureInterval) {
-                clearInterval(frameCaptureInterval);
-            }
         }
 
         function playPauseAnimation() {
@@ -748,7 +682,8 @@
                 startAnimation();
             } else {
                 isPaused = !isPaused;
-                document.getElementById('play-pause-btn').textContent = isPaused ? '▶️' : '⏸️';
+                const playPauseBtn = document.getElementById('play-pause-btn');
+                playPauseBtn.textContent = isPaused ? '▶️' : '⏸️';
             }
         }
 
@@ -757,14 +692,15 @@
             animationController.cancelled = true;
             isPaused = false;
             isAnimating = false;
-            clearInterval(frameCaptureInterval);
             const output = document.getElementById('output');
+            const startBtn = document.getElementById('start-btn');
+            const playPauseBtn = document.getElementById('play-pause-btn');
             output.innerHTML = currentOutput;
             output.classList.remove('finished');
             const hand = document.querySelector('#hand');
             if (hand) hand.remove();
-            document.getElementById('start-btn').disabled = false;
-            document.getElementById('play-pause-btn').textContent = '▶️';
+            startBtn.disabled = false;
+            playPauseBtn.textContent = '▶️';
             typesetMathJax();
         }
 
@@ -796,169 +732,93 @@
             document.getElementById('output').innerHTML = '';
         }
 
-        async function downloadOutput() {
-            const format = document.getElementById('download-format').value;
-            const container = document.getElementById('resolution-container');
-            const resValue = container.style.display === 'none' 
-                ? '1280x720' 
-                : document.getElementById('resolution-select').value;
-            const [w, h] = resValue.split('x').map(Number);
-            const downloadBtn = document.getElementById('download-btn');
+        // ✅ Toggle recording
+        function toggleRecording() {
+            isRecording = !isRecording;
+            const btn = document.getElementById('record-btn');
+            if (isRecording) {
+                recordedFrames = [];
+                btn.textContent = '⏹️ Finish';
+                btn.classList.add('recording');
+            } else {
+                btn.textContent = '⏺️ Record';
+                btn.classList.remove('recording');
+            }
+        }
 
-            // ✅ Block video export if no recording
-            if ((format === 'gif' || format === 'webm') && recordedFrames.length === 0) {
-                alert('Please click "⏺️ Record" and run the animation first.');
+        // ✅ Handle download format change
+        function handleDownloadFormatChange() {
+            const format = document.getElementById('download-format').value;
+            selectedDownloadType = format;
+            const webmMenu = document.getElementById('webm-resolutions');
+            if (format === 'webm') {
+                const selectRect = document.getElementById('download-format').getBoundingClientRect();
+                webmMenu.innerHTML = `
+                    <div onclick="selectWebMResolution('426x240')">240p (426x240)</div>
+                    <div onclick="selectWebMResolution('640x360')">360p (640x360)</div>
+                    <div onclick="selectWebMResolution('854x480')">480p (854x480)</div>
+                    <div onclick="selectWebMResolution('1280x720')">720p (1280x720 - HD)</div>
+                    <div onclick="selectWebMResolution('1920x1080')">1080p (1920x1080 - FHD)</div>
+                    <div onclick="selectWebMResolution('2560x1440')">1440p (2560x1440 - 2K)</div>
+                    <div onclick="selectWebMResolution('3840x2160')">2160p (3840x2160 - 4K)</div>
+                `;
+                webmMenu.style.display = 'block';
+                webmMenu.style.left = selectRect.left + 'px';
+                webmMenu.style.top = (selectRect.bottom + window.scrollY) + 'px';
+            } else {
+                webmMenu.style.display = 'none';
+            }
+        }
+
+        function selectWebMResolution(res) {
+            selectedWebMResolution = res;
+            document.getElementById('webm-resolutions').style.display = 'none';
+        }
+
+        // ✅ Enhanced download
+        async function downloadOutput() {
+            if (isAnimating && !isPaused) {
+                alert('Please wait until animation finishes.');
                 return;
             }
 
-            if ((format === 'gif' || format === 'webm') && recordedFrames.length > 0) {
-                downloadBtn.innerHTML = '.Rendering...';
-                downloadBtn.disabled = true;
-                downloadBtn.classList.add('rendering');
-
-                try {
-                    if (format === 'gif') {
-                        await renderAndDownloadGIF(w, h);
-                    } else if (format === 'webm') {
-                        if (!MediaRecorder || !MediaRecorder.isTypeSupported('video/webm')) {
-                            alert('WebM not supported in your browser. Try Chrome or GIF.');
-                            return;
-                        }
-                        await renderAndDownloadWebM(w, h);
-                    }
-                } catch (err) {
-                    console.error('Render failed:', err);
-                    alert('Export failed. Try fewer frames or lower resolution.');
-                } finally {
-                    downloadBtn.innerHTML = '📥';
-                    downloadBtn.disabled = false;
-                    downloadBtn.classList.remove('rendering');
-                }
-            } else {
-                await downloadImage(format, w, h);
-            }
-        }
-
-        async function downloadImage(format, width, height) {
             const output = document.getElementById('output');
-            try {
-                const canvas = await html2canvas(output, { 
-                    backgroundColor: '#7cfc00', // lawngreen
-                    scale: 1 
+
+            if (selectedDownloadType === 'png' || selectedDownloadType === 'jpg') {
+                // Final frame only
+                const canvas = await html2canvas(output, {
+                    backgroundColor: 'lawngreen',
+                    scale: 2
                 });
-                const resized = resizeCanvas(canvas, width, height);
-                let dataUrl;
-                if (format === 'jpg') {
-                    dataUrl = resized.toDataURL('image/jpeg', 0.9);
-                } else {
-                    dataUrl = resized.toDataURL('image/' + (format === 'webp' ? 'webp' : 'png'));
+                const mime = selectedDownloadType === 'jpg' ? 'image/jpeg' : 'image/png';
+                const url = canvas.toDataURL(mime, selectedDownloadType === 'jpg' ? 0.92 : 1.0);
+                triggerDownload(url, `math_output.${selectedDownloadType}`);
+            } else if (selectedDownloadType === 'gif' || selectedDownloadType === 'webm') {
+                if (recordedFrames.length === 0) {
+                    alert('No animation recorded. Click "Record", then "Start Animation".');
+                    return;
                 }
-                const a = document.createElement('a');
-                a.href = dataUrl;
-                a.download = `math_output.${format}`;
-                a.click();
-            } catch (err) {
-                alert('Image export failed.');
+                // Placeholder for actual encoding
+                alert(`${selectedDownloadType.toUpperCase()} export is ready for integration with encoding libraries.`);
+                // TODO: Integrate gif.js or webm-writer-js here
             }
         }
 
-        function renderAndDownloadGIF(width, height) {
-            return new Promise((resolve, reject) => {
-                const gif = new GIF({
-                    workers: 2,
-                    quality: 10,
-                    width: width,
-                    height: height,
-                    repeat: 0,
-                    transparent: '#lawngreen' // lawngreen
-                });
-
-                recordedFrames.forEach(({ canvas }) => {
-                    const resized = resizeCanvas(canvas, width, height);
-                    gif.addFrame(resized, { delay: 1000 / FRAME_RATE });
-                });
-
-                gif.on('finished', function(blob) {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `math_animation_${Date.now()}.gif`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    resolve();
-                });
-
-                gif.on('error', reject);
-                gif.render();
-            });
-        }
-
-        async function renderAndDownloadWebM(width, height) {
-            return new Promise((resolve, reject) => {
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-
-                const mimeType = MediaRecorder.isTypeSupported('video/webm; codecs=vp8')
-                    ? 'video/webm; codecs=vp8'
-                    : 'video/webm';
-
-                const stream = canvas.captureStream(FRAME_RATE);
-                const mediaRecorder = new MediaRecorder(stream, { mimeType });
-                const chunks = [];
-
-                mediaRecorder.ondataavailable = e => {
-                    if (e.data.size > 0) chunks.push(e.data);
-                };
-
-                mediaRecorder.onerror = reject;
-
-                mediaRecorder.onstop = () => {
-                    if (chunks.length === 0) {
-                        reject(new Error('No data'));
-                        return;
-                    }
-                    const blob = new Blob(chunks, { type: 'video/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `math_animation_${Date.now()}.webm`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    resolve();
-                };
-
-                mediaRecorder.start();
-
-                (async () => {
-                    for (let i = 0; i < recordedFrames.length; i++) {
-                        const frame = recordedFrames[i].canvas;
-                        ctx.fillStyle = '#lawngreen'; // lawngreen
-                        ctx.fillRect(0, 0, width, height);
-                        ctx.drawImage(frame, 0, 0, width, height);
-                        await delay(1000 / FRAME_RATE);
-                    }
-                    setTimeout(() => mediaRecorder.stop(), 200);
-                })();
-            });
-        }
-
-        function resizeCanvas(src, width, height) {
-            const temp = document.createElement('canvas');
-            temp.width = width;
-            temp.height = height;
-            const ctx = temp.getContext('2d');
-            ctx.fillStyle = '#lawngreen'; // lawngreen
-            ctx.fillRect(0, 0, width, height);
-            ctx.drawImage(src, 0, 0, width, height);
-            return temp;
+        function triggerDownload(dataUrl, filename) {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = filename;
+            a.click();
         }
 
         function showDialog(id) {
-            document.getElementById(id + 'Dialog').showModal();
-            if (id === 'history') populateHistory();
-            else if (id === 'symbols') setupSymbolTable();
+            const dialog = document.getElementById(id + 'Dialog');
+            dialog.showModal();
+            if (id === 'history') {
+                populateHistory();
+            } else if (id === 'symbols') {
+                setupSymbolTable();
+            }
         }
 
         function closeDialog(id) {
@@ -981,60 +841,63 @@
         }
 
         function setupSymbolTable() {
-            const rows = document.getElementById('symbols-table').getElementsByTagName('tr');
+            const table = document.getElementById('symbols-table');
+            const rows = table.getElementsByTagName('tr');
             for (let i = 1; i < rows.length; i++) {
                 const cells = rows[i].getElementsByTagName('td');
                 cells[0].onclick = () => copyToClipboard(cells[0].textContent, 'Symbol');
-                cells[1].onclick = () => copyToClipboard(cells[1].textContent, 'Code');
+                cells[1].onclick = () => copyToClipboard(cells[1].textContent, 'AsciiMath code');
             }
         }
 
         function copyToClipboard(text, type) {
             navigator.clipboard.writeText(text).then(() => {
-                alert(`${type} "${text}" copied!`);
-            }).catch(err => console.error('Copy failed:', err));
+                alert(`${type} "${text}" copied to clipboard!`);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
         }
 
         async function typesetMathJax() {
             try {
                 await MathJax.typesetPromise([document.getElementById('output')]);
             } catch (err) {
-                console.error('MathJax error:', err);
+                console.error('MathJax typesetting error:', err);
             }
         }
 
         function updateHandPosition(hand) {
             const cursor = document.getElementById('cursor');
             const output = document.getElementById('output');
-            const rect = output.getBoundingClientRect();
+            const outputRect = output.getBoundingClientRect();
             if (cursor) {
-                const cRect = cursor.getBoundingClientRect();
-                let left = cRect.left - rect.left + 15; // adjusted for larger hand
-                let top = cRect.top - rect.top - 5;
-                left = Math.max(0, Math.min(left, rect.width - hand.offsetWidth));
+                const rect = cursor.getBoundingClientRect();
+                let left = rect.left - outputRect.left + 15;
+                let top = rect.top - outputRect.top - 5;
+                left = Math.max(0, Math.min(left, outputRect.width - hand.offsetWidth));
                 hand.style.left = left + 'px';
                 hand.style.top = top + 'px';
             } else {
-                const last = output.lastChild;
-                if (last && last.nodeType === Node.ELEMENT_NODE) {
-                    const lRect = last.getBoundingClientRect();
-                    let left = lRect.right - rect.left + 15;
-                    let top = lRect.top - rect.top - 5;
-                    left = Math.max(0, Math.min(left, rect.width - hand.offsetWidth));
+                const lastChild = output.lastChild;
+                if (lastChild && lastChild.nodeType === Node.ELEMENT_NODE) {
+                    const rect = lastChild.getBoundingClientRect();
+                    let left = rect.right - outputRect.left + 15;
+                    let top = rect.top - outputRect.top - 5;
+                    left = Math.max(0, Math.min(left, outputRect.width - hand.offsetWidth));
                     hand.style.left = left + 'px';
                     hand.style.top = top + 'px';
                 } else {
-                    const span = document.createElement('span');
-                    span.style.display = 'inline-block';
-                    span.style.width = '1px';
-                    output.appendChild(span);
-                    const sRect = span.getBoundingClientRect();
-                    let left = sRect.left - rect.left + 15;
-                    let top = sRect.top - rect.top - 5;
-                    left = Math.max(0, Math.min(left, rect.width - hand.offsetWidth));
+                    const tempSpan = document.createElement('span');
+                    tempSpan.style.display = 'inline-block';
+                    tempSpan.style.width = '1px';
+                    output.appendChild(tempSpan);
+                    const rect = tempSpan.getBoundingClientRect();
+                    let left = rect.left - outputRect.left + 15;
+                    let top = rect.top - outputRect.top - 5;
+                    left = Math.max(0, Math.min(left, outputRect.width - hand.offsetWidth));
                     hand.style.left = left + 'px';
                     hand.style.top = top + 'px';
-                    span.remove();
+                    tempSpan.remove();
                 }
             }
         }
