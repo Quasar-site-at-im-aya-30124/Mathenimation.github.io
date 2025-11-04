@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maths Equation Editor</title>
+    <!-- ✅ TeX-only MathJax (enables \begin{cases}) -->
+    <script>
+        MathJax = {
+            loader: { load: ['input/tex', 'output/chtml'] },
+            tex: { inlineMath: [['$', '$']] }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" async></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #1c2526;
+            color: #e0e0e0;
+        }
+        h1, p, li {
+            color: #e0e0e0;
+        }
+        #header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        #header-row h1 {
+            margin: 0;
+        }
+        #header-row .menu-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        #header-row button,
+        #controls-row button,
+        dialog button {
+            padding: 8px 12px;
+            font-size: 16px;
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            border: 1px solid #666;
+            cursor: pointer;
+        }
+        #header-row button:hover,
+        #controls-row button:hover,
+        dialog button:hover {
+            background-color: #5a5a5a;
+        }
+        #input {
+            width: 100%;
+            height: 100px;
+            font-size: 18px;
+            background-color: #2e2e2e;
+            color: #e0e0e0;
+            border: 1px solid #4a4a4a;
+            padding: 10px;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+        #output {
+            font-size: 24px;
+            position: relative;
+            min-height: 200px;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            box-sizing: border-box;
+            background-color: lawngreen;
+            color: #000;
+            border: 1px solid #4a4a4a;
+            padding: 10px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        #hand {
+            position: absolute;
+            font-size: 50px;
+            transform: rotate(45deg);
+            transition: left 0.1s ease, top 0.1s ease, transform 0.5s ease, opacity 0.5s ease 0.5s;
+            animation: float 1.5s ease-in-out infinite;
+            opacity: 1;
+            color: #000;
+            pointer-events: none;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(45deg); }
+            50% { transform: translateY(-8px) rotate(45deg); }
+        }
+        #output.finished #hand {
+            animation: none;
+            transform: rotate(120deg) translate(70px, 70px);
+            opacity: 0;
+        }
+        #cursor {
+            display: inline-block;
+            width: 7px;
+            height: 1.2em;
+            background: blue;
+            vertical-align: middle;
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        dialog {
+            width: 70vw;
+            height: 70vh;
+            overflow: auto;
+            padding: 20px;
+            box-sizing: border-box;
+            background-color: #2e2e2e;
+            color: #e0e0e0;
+            border: 1px solid #4a4a4a;
+        }
+        dialog button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #4a4a4a;
+            padding: 8px;
+            text-align: left;
+            color: #e0e0e0;
+        }
+        th {
+            background-color: #3a3a3a;
+        }
+        #controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+        }
+        #controls-row-left,
+        #controls-row-right {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        #controls-row select,
+        #controls-row input[type="range"] {
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            border: 1px solid #666;
+        }
+        #controls-row select {
+            padding: 8px;
+        }
+        #controls-row select option {
+            background-color: #2e2e2e;
+            color: #e0e0e0;
+        }
+        #speed-slider {
+            width: 100px;
+            vertical-align: middle;
+        }
+        #controls {
+            margin-top: 10px;
+        }
+        #webm-resolutions {
+            display: none;
+            position: absolute;
+            background: #2e2e2e;
+            border: 1px solid #666;
+            z-index: 1000;
+            padding: 5px;
+            margin-top: 5px;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        #webm-resolutions div {
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+        #webm-resolutions div:hover {
+            background: #4a4a4a;
+        }
+        #record-btn.recording {
+            background-color: #ff5555 !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="header-row">
+        <h1>Mathenimation</h1>
+        <div class="menu-buttons">
+            <button onclick="showDialog('examples')">Examples</button>
+            <button onclick="showDialog('history')">History</button>
+            <button onclick="showDialog('help')">Help</button>
+            <button onclick="showDialog('symbols')">Symbols</button>
+            <button onclick="window.location.href='index.html'">More</button>
+        </div>
+    </div>
+    <div id="controls-row">
+        <div id="controls-row-left">
+            <button id="play-pause-btn" onclick="playPauseAnimation()">▶️</button>
+            <button onclick="stopAnimation()">⏹️</button>
+            <label for="speed-slider">Speed:</label>
+            <input type="range" id="speed-slider" min="0.5" max="2" step="0.1" value="1">
+        </div>
+        <div id="controls-row-right">
+            <button onclick="undo()">↺</button>
+            <button onclick="redo()">↻</button>
+            <button onclick="clearOutput()">↩</button>
+            <select id="download-format" onchange="handleDownloadFormatChange()">
+                <optgroup label="--Image--">
+                    <option value="png">Save as PNG</option>
+                    <option value="jpg">Save as JPG</option>
+                </optgroup>
+                <optgroup label="--Animation--">
+                    <option value="gif">Save as GIF</option>
+                    <option value="webm">Save as WebM</option>
+                </optgroup>
+            </select>
+            <button onclick="downloadOutput()">📥</button>
+        </div>
+    </div>
+    <div id="output"></div>
+    <div id="controls">
+        <textarea id="input" placeholder="e.g., f(x) = `{x, if x>0; 0, if x=0; -x, if x<0}`"></textarea>
+        <div style="text-align: right; margin: 10px 0; display: flex; justify-content: flex-end; gap: 10px;">
+            <button id="record-btn" onclick="toggleRecording()">⏺️ Record</button>
+            <button id="start-btn" onclick="startAnimation()">Start Animation</button>
+        </div>
+    </div>
+    <canvas id="captureCanvas" style="display: none;"></canvas>
+    <div id="webm-resolutions"></div>
+
+    <!-- Dialogs -->
+    <dialog id="examplesDialog">
+        <h2>Examples</h2>
+        <ul>
+            <li>f(x) = `{x, if x>0; 0, if x=0; -x, if x<0}`</li>
+            <li>Solve: `x^2 + 2x + 1 = 0`</li>
+            <li>Integral: `\int_0^1 x^2 dx`</li>
+            <li>Normal text with math: The value is `π ≈ 3.14159`.</li>
+        </ul>
+        <button onclick="closeDialog('examples')">Close ❌</button>
+    </dialog>
+
+    <dialog id="historyDialog">
+        <h2>History</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+        </table>
+        <button onclick="closeDialog('history')">Close ❌</button>
+    </dialog>
+
+    <dialog id="helpDialog">
+        <h2>Help</h2>
+        <p>Wrap math expressions in backticks:</p>
+        <ul>
+            <li>General math: `` `x^2 + y^2 = r^2` ``</li>
+            <li>Piecewise function: `` `{expr, if cond; expr, if cond}` ``</li>
+            <li>Example: `` `{x, if x>0; 0, if x=0; -x, if x<0}` ``</li>
+            
+            <li> Note:Write the expression or equations in backticks</li>
+
+        </ul>
+        <button onclick="closeDialog('help')">Close ❌</button>
+    </dialog>
+
+    <dialog id="symbolsDialog">
+        <h2>Common LaTeX Symbols</h2>
+        <p>Inside backticks, you can use:</p>
+        <ul>
+            <li><code>x^2</code>, <code>x_1</code></li>
+            <li><code>\sqrt{x}</code>, <code>\frac{a}{b}</code></li>
+            <li><code>\leq</code>, <code>\geq</code>, <code>\neq</code></li>
+            <li><code>\pi</code>, <code>\infty</code>, <code>\alpha</code></li>
+        </ul>
+        <button onclick="closeDialog('symbols')">Close ❌</button>
+    </dialog>
+
+    <script>
+        let entries = [];
+        let currentOutput = '';
+        let undoStack = [];
+        let redoStack = [];
+        let history = JSON.parse(localStorage.getItem('mathHistory')) || [];
+        let isAnimating = false;
+        let isPaused = false;
+        let animationController = null;
+        let isRecording = false;
+        let recordedFrames = [];
+        let selectedDownloadType = 'png';
+        let selectedWebMResolution = '1280x720';
+
+        // ✅ CORE: Convert backtick content to LaTeX (with piecewise support)
+        function renderMathInBackticks(text) {
+            return text.replace(/`([^`]+)`/g, (match, content) => {
+                content = content.trim();
+
+                // Remove outer { } if present (e.g., `{x, if x>0; ...}`)
+                if (content.startsWith('{') && content.endsWith('}')) {
+                    content = content.slice(1, -1).trim();
+                }
+
+                // Detect piecewise: must have "if" and ";"
+                if (content.includes('if') && content.includes(';')) {
+                    const cases = content.split(/\s*;\s*/).map(c => c.trim()).filter(c => c);
+                    const texLines = [];
+
+                    for (let c of cases) {
+                        // Try to split at ", if" first (your preferred format)
+                        const commaIfIndex = c.search(/,\s*if\s+/i);
+                        if (commaIfIndex !== -1) {
+                            const expr = c.substring(0, commaIfIndex).trim();
+                            const cond = c.substring(commaIfIndex + 1).trim().replace(/^if\s+/i, '');
+                            texLines.push(`${expr} & \\text{if } ${cond}`);
+                        } else {
+                            // Fallback: split at "if" without comma
+                            const parts = c.split(/\s+if\s+/i);
+                            if (parts.length === 2) {
+                                const expr = parts[0].trim();
+                                const cond = parts[1].trim();
+                                texLines.push(`${expr} & \\text{if } ${cond}`);
+                            } else {
+                                // Invalid → treat as inline math
+                                return `$${content}$`;
+                            }
+                        }
+                    }
+
+                    if (texLines.length > 0) {
+                        return `$\\begin{cases} ${texLines.join(' \\\\ ')} \\end{cases}$`;
+                    }
+                }
+
+                // Not piecewise → inline TeX
+                return `$${content}$`;
+            });
+        }
+
+        // ✅ Animation with full typing + hand + cursor
+        async function startAnimation() {
+            if (isAnimating) return;
+            isAnimating = true;
+            isPaused = false;
+            animationController = { cancelled: false };
+
+            const inputText = document.getElementById('input').value;
+            if (!inputText) {
+                isAnimating = false;
+                return;
+            }
+
+            const output = document.getElementById('output');
+            const startBtn = document.getElementById('start-btn');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+
+            startBtn.disabled = true;
+            playPauseBtn.textContent = '⏸️';
+            output.classList.remove('finished');
+            output.innerHTML = currentOutput;
+
+            const hand = document.createElement('span');
+            hand.id = 'hand';
+            hand.textContent = '✍️';
+            hand.style.opacity = '1';
+            output.appendChild(hand);
+
+            let currentText = currentOutput ? currentOutput + '<br>' : '';
+            const speed = parseFloat(document.getElementById('speed-slider').value);
+            const charDelay = 50 / speed;
+
+            // Animate each character
+            for (let i = 0; i < inputText.length; i++) {
+                if (animationController.cancelled) break;
+                if (isPaused) {
+                    while (isPaused && !animationController.cancelled) {
+                        await delay(100);
+                    }
+                    if (animationController.cancelled) break;
+                }
+
+                currentText += inputText[i];
+                output.innerHTML = currentText + '<span id="cursor"></span>';
+                output.appendChild(hand);
+                updateHandPosition(hand);
+                await captureFrame();
+                await delay(charDelay);
+            }
+
+            // ✅ After typing: convert backticks to LaTeX and render
+            if (!animationController.cancelled) {
+                const finalProcessed = renderMathInBackticks(currentText);
+                output.innerHTML = finalProcessed;
+                output.appendChild(hand);
+                updateHandPosition(hand);
+                await typesetMathJax();
+                output.classList.add('finished');
+                await captureFrame();
+                await delay(1000);
+                hand.remove();
+
+                entries.push(inputText);
+                undoStack.push([...entries]);
+                redoStack = [];
+                history.push({
+                    title: `Entry ${history.length + 1}`,
+                    description: inputText,
+                    date: new Date().toLocaleDateString(),
+                    time: new Date().toLocaleTimeString()
+                });
+                localStorage.setItem('mathHistory', JSON.stringify(history));
+                currentOutput = finalProcessed;
+            }
+
+            startBtn.disabled = false;
+            playPauseBtn.textContent = '▶️';
+            isAnimating = false;
+            animationController = null;
+        }
+
+        // ✅ Supporting functions
+        async function captureFrame() {
+            if (!isRecording) return;
+            const output = document.getElementById('output');
+            const canvas = await html2canvas(output, {
+                scale: 1,
+                backgroundColor: 'lawngreen'
+            });
+            recordedFrames.push({
+                timestamp: performance.now(),
+                dataUrl: canvas.toDataURL('image/png')
+            });
+        }
+
+        async function typesetMathJax() {
+            try {
+                await MathJax.typesetPromise([document.getElementById('output')]);
+            } catch (err) {
+                console.error('MathJax error:', err);
+            }
+        }
+
+        function updateHandPosition(hand) {
+            const cursor = document.getElementById('cursor');
+            const output = document.getElementById('output');
+            const outputRect = output.getBoundingClientRect();
+            let rect;
+            if (cursor) {
+                rect = cursor.getBoundingClientRect();
+            } else {
+                const range = document.createRange();
+                range.selectNodeContents(output);
+                range.collapse(false);
+                const temp = document.createElement('span');
+                range.insertNode(temp);
+                rect = temp.getBoundingClientRect();
+                temp.remove();
+            }
+            let left = rect.left - outputRect.left + 15;
+            let top = rect.top - outputRect.top - 5;
+            left = Math.max(0, Math.min(left, outputRect.width - hand.offsetWidth));
+            hand.style.left = left + 'px';
+            hand.style.top = top + 'px';
+        }
+
+        // ✅ UI Controls
+        function playPauseAnimation() {
+            if (!isAnimating) {
+                startAnimation();
+            } else {
+                isPaused = !isPaused;
+                document.getElementById('play-pause-btn').textContent = isPaused ? '▶️' : '⏸️';
+            }
+        }
+
+        function stopAnimation() {
+            if (!isAnimating) return;
+            animationController.cancelled = true;
+            isPaused = false;
+            isAnimating = false;
+            const output = document.getElementById('output');
+            output.innerHTML = currentOutput;
+            output.classList.remove('finished');
+            const hand = document.querySelector('#hand');
+            if (hand) hand.remove();
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('play-pause-btn').textContent = '▶️';
+            typesetMathJax();
+        }
+
+        function undo() {
+            if (undoStack.length) {
+                redoStack.push([...entries]);
+                entries = undoStack.pop();
+                const raw = entries.join('<br>');
+                const processed = renderMathInBackticks(raw);
+                currentOutput = processed;
+                document.getElementById('output').innerHTML = processed;
+                typesetMathJax();
+            }
+        }
+
+        function redo() {
+            if (redoStack.length) {
+                undoStack.push([...entries]);
+                entries = redoStack.pop();
+                const raw = entries.join('<br>');
+                const processed = renderMathInBackticks(raw);
+                currentOutput = processed;
+                document.getElementById('output').innerHTML = processed;
+                typesetMathJax();
+            }
+        }
+
+        function clearOutput() {
+            entries = [];
+            undoStack = [];
+            redoStack = [];
+            currentOutput = '';
+            document.getElementById('output').innerHTML = '';
+        }
+
+        function toggleRecording() {
+            isRecording = !isRecording;
+            const btn = document.getElementById('record-btn');
+            if (isRecording) {
+                recordedFrames = [];
+                btn.textContent = '⏹️ Finish';
+                btn.classList.add('recording');
+            } else {
+                btn.textContent = '⏺️ Record';
+                btn.classList.remove('recording');
+            }
+        }
+
+        function handleDownloadFormatChange() {
+            const format = document.getElementById('download-format').value;
+            selectedDownloadType = format;
+            const webmMenu = document.getElementById('webm-resolutions');
+            if (format === 'webm') {
+                const selectRect = document.getElementById('download-format').getBoundingClientRect();
+                webmMenu.innerHTML = `
+                    <div onclick="selectWebMResolution('426x240')">240p (426x240)</div>
+                    <div onclick="selectWebMResolution('640x360')">360p (640x360)</div>
+                    <div onclick="selectWebMResolution('854x480')">480p (854x480)</div>
+                    <div onclick="selectWebMResolution('1280x720')">720p (1280x720 - HD)</div>
+                    <div onclick="selectWebMResolution('1920x1080')">1080p (1920x1080 - FHD)</div>
+                `;
+                webmMenu.style.display = 'block';
+                webmMenu.style.left = selectRect.left + 'px';
+                webmMenu.style.top = (selectRect.bottom + window.scrollY) + 'px';
+            } else {
+                webmMenu.style.display = 'none';
+            }
+        }
+
+        function selectWebMResolution(res) {
+            selectedWebMResolution = res;
+            document.getElementById('webm-resolutions').style.display = 'none';
+        }
+
+        async function downloadOutput() {
+            if (isAnimating && !isPaused) {
+                alert('Please wait until animation finishes.');
+                return;
+            }
+
+            const output = document.getElementById('output');
+            if (selectedDownloadType === 'png' || selectedDownloadType === 'jpg') {
+                const canvas = await html2canvas(output, {
+                    backgroundColor: 'lawngreen',
+                    scale: 2
+                });
+                const mime = selectedDownloadType === 'jpg' ? 'image/jpeg' : 'image/png';
+                const url = canvas.toDataURL(mime, selectedDownloadType === 'jpg' ? 0.92 : 1.0);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `math_output.${selectedDownloadType}`;
+                a.click();
+            } else if (selectedDownloadType === 'gif' || selectedDownloadType === 'webm') {
+                if (recordedFrames.length === 0) {
+                    alert('No animation recorded. Click "Record", then "Start Animation".');
+                    return;
+                }
+                alert(`${selectedDownloadType.toUpperCase()} export is ready for integration.`);
+            }
+        }
+
+        function showDialog(id) {
+            document.getElementById(id + 'Dialog').showModal();
+            if (id === 'history') {
+                populateHistory();
+            }
+        }
+
+        function closeDialog(id) {
+            document.getElementById(id + 'Dialog').close();
+        }
+
+        function populateHistory() {
+            const tbody = document.getElementById('historyBody');
+            tbody.innerHTML = '';
+            history.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.title}</td>
+                    <td>${item.description}</td>
+                    <td>${item.date}</td>
+                    <td>${item.time}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    </script>
+</body>
+</html>
