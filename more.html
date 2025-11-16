@@ -1,19 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maths Equation Editor</title>
-    <!-- ✅ TeX-only MathJax (enables \begin{cases}) -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Mathenimation AI</title>
     <script>
         MathJax = {
             loader: { load: ['input/tex', 'output/chtml'] },
-            tex: { inlineMath: [['$', '$']] }
+            tex: { inlineMath: [['$', '$']], displayMath: [['$$','$$']] },
+            options: { renderActions: { findScript: [10, function (doc) { /* default */ }, ''] } }
         };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" async></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <style>
+        /* ... your existing styles ... */
         body {
             font-family: Arial, sans-serif;
             padding: 20px;
@@ -76,6 +77,23 @@
             padding: 10px;
             margin: 10px 0;
             overflow-x: auto;
+        }
+        /* Textbook style wrapper for rendered math */
+        .textbook-math { 
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0 .15em;
+            padding: .05em .1em;
+            /* slightly larger than surrounding text to look textbook-like */
+            font-size: 1.15em;
+            line-height: 1.2;
+        }
+        /* Display-mode math wrapper */
+        .textbook-math.display {
+            display: block;
+            text-align: center;
+            margin: .6em 0;
+            font-size: 1.35em;
         }
         #hand {
             position: absolute;
@@ -227,7 +245,8 @@
     </div>
     <div id="output"></div>
     <div id="controls">
-        <textarea id="input" placeholder="e.g., f(x) = `{x, if x>0; 0, if x=0; -x, if x<0}`"></textarea>
+        <!-- ✅ Updated placeholder: includes radicals -->
+        <textarea id="input" placeholder="e.g., f(x) = ({x^2, if x<0; 0, if x=0; x, if x>0}) or (sqrt(x+4))"></textarea>
         <div style="text-align: right; margin: 10px 0; display: flex; justify-content: flex-end; gap: 10px;">
             <button id="record-btn" onclick="toggleRecording()">⏺️ Record</button>
             <button id="start-btn" onclick="startAnimation()">Start Animation</button>
@@ -235,15 +254,34 @@
     </div>
     <canvas id="captureCanvas" style="display: none;"></canvas>
     <div id="webm-resolutions"></div>
+    <div id="math-render-buffer" style="position:absolute;left:-9999px;top:-9999px;visibility:hidden;"></div>
 
     <!-- Dialogs -->
     <dialog id="examplesDialog">
         <h2>Examples</h2>
         <ul>
-            <li>f(x) = `{x, if x>0; 0, if x=0; -x, if x<0}`</li>
-            <li>Solve: `x^2 + 2x + 1 = 0`</li>
-            <li>Integral: `\int_0^1 x^2 dx`</li>
-            <li>Normal text with math: The value is `π ≈ 3.14159`.</li>
+            <li>Fraction: <code>(n(n+1)/2)</code></li>
+            <li>Double integral: <code>(int_0^1, int_1^2) sin xy dx dy</code></li>
+            <li>Triple integral: <code>(int_0^1, int_1^2, int_2^3) sin xyz dx dy dz</code></li>
+            <!-- ✅ Piecewise example -->
+            <li><strong>Piecewise:</strong> <code>({x^2, if x<0; 0, if x=0; x, if x>0})</code></li>
+            <li>Simple math: <code>(x^2 + y^2 = r^2)</code></li>
+        </ul>
+        <h3>Algebraic Expressions</h3>
+        <ul>
+            <li><strong>Monomial:</strong> <code>(3x^2)</code></li>
+            <li><strong>Binomial:</strong> <code>(2x + 5)</code></li>
+            <li><strong>Trinomial:</strong> <code>(x^2 + 2x + 1)</code></li>
+            <li><strong>Polynomial:</strong> <code>(3x^2 + 2x^3 - x + 4)</code></li>
+            <li><strong>Rational Expression:</strong> <code>(x + 1)/(x^2 - 4)</code></li>
+        </ul>
+        <h3>Radical Expressions</h3>
+        <ul>
+            <li><strong>Square Root:</strong> <code>(sqrt(x^2 - 5x + 3))</code> or <code>(√(x + 4))</code></li>
+            <li><strong>Cube Root:</strong> <code>(∛(2x^2 - 1))</code> or <code>(root(3)(2x^2 - 1))</code></li>
+            <li><strong>n-th Root:</strong> <code>(root(n)(5x^7 + sqrt(2)x + 10))</code></li>
+            <li><strong>Mixed Radical:</strong> <code>((x + √5)/2)</code></li>
+            <li><strong>Nested:</strong> <code>(sqrt((x^2 - 4)/(x + 2)))</code></li>
         </ul>
         <button onclick="closeDialog('examples')">Close ❌</button>
     </dialog>
@@ -266,368 +304,684 @@
 
     <dialog id="helpDialog">
         <h2>Help</h2>
-        <p>Wrap math expressions in backticks:</p>
+        <p>Write math inside parentheses <code>( ... )</code> or use LaTeX delimiters <code>$...$</code> or <code>$$...$$</code>:</p>
         <ul>
-            <li>General math: `` `x^2 + y^2 = r^2` ``</li>
-            <li>Piecewise function: `` `{expr, if cond; expr, if cond}` ``</li>
-            <li>Example: `` `{x, if x>0; 0, if x=0; -x, if x<0}` ``</li>
-            
-            <li> Note:Write the expression or equations in backticks</li>
-
+            <li>Fractions: <code>(a/b)</code> → renders as $\frac{a}{b}$</li>
+            <li>Integrals: <code>(int_0^1, int_1^2)</code></li>
+            <li><strong>Piecewise functions:</strong> <br>
+                <code>({expr, if cond; expr, if cond})</code><br>
+                Example: <code>({x, if x>0; -x, if x<0})</code>
+            </li>
+            <li>Normal text outside parentheses animates as plain text.</li>
         </ul>
+        <h3>Algebraic Expressions</h3>
+        <p>Use parentheses to render algebraic expressions automatically:</p>
+        <ul>
+            <li><strong>Monomial:</strong> <code>(3x^2)</code></li>
+            <li><strong>Binomial:</strong> <code>(2x + 5)</code></li>
+            <li><strong>Trinomial:</strong> <code>(x^2 + 2x + 1)</code></li>
+            <li><strong>Polynomial:</strong> <code>(3x^2 + 2x^3 - x + 4)</code></li>
+            <li><strong>Rational Expression:</strong> <code>(x + 1)/(x^2 - 4)</code></li>
+        </ul>
+        <h3>Radical Expressions</h3>
+        <p>Supported forms:</p>
+        <ul>
+            <li><code>(sqrt(...))</code> or <code>(√(...))</code> → square root</li>
+            <li><code>(∛(...))</code> → cube root</li>
+            <li><code>(root(n)(...))</code> → n-th root</li>
+            <li>Radicals can contain fractions, and vice versa!</li>
+            <li>Example: <code>(sqrt((x+1)/(x-1)))</code> → $\sqrt{\frac{x+1}{x-1}}$</li>
+        </ul>
+        <p>Math renders instantly when <code>)</code> or <code>$</code> is typed!</p>
         <button onclick="closeDialog('help')">Close ❌</button>
     </dialog>
 
     <dialog id="symbolsDialog">
-        <h2>Common LaTeX Symbols</h2>
-        <p>Inside backticks, you can use:</p>
+        <h2>Common Symbols</h2>
+        <p>Inside parentheses, use:</p>
         <ul>
             <li><code>x^2</code>, <code>x_1</code></li>
             <li><code>\sqrt{x}</code>, <code>\frac{a}{b}</code></li>
             <li><code>\leq</code>, <code>\geq</code>, <code>\neq</code></li>
             <li><code>\pi</code>, <code>\infty</code>, <code>\alpha</code></li>
+            <li><code>\int</code>, <code>\sum</code></li>
+            <li><strong>Radicals:</strong> <code>sqrt(...)</code>, <code>root(3)(...)</code>, or symbols <code>√</code>, <code>∛</code></li>
         </ul>
         <button onclick="closeDialog('symbols')">Close ❌</button>
     </dialog>
 
-    <script>
-        let entries = [];
-        let currentOutput = '';
-        let undoStack = [];
-        let redoStack = [];
-        let history = JSON.parse(localStorage.getItem('mathHistory')) || [];
-        let isAnimating = false;
-        let isPaused = false;
-        let animationController = null;
-        let isRecording = false;
-        let recordedFrames = [];
-        let selectedDownloadType = 'png';
-        let selectedWebMResolution = '1280x720';
+<script>
+    let entries = [];
+    let currentOutput = '';
+    let undoStack = [];
+    let redoStack = [];
+    let history = JSON.parse(localStorage.getItem('mathHistory')) || [];
+    let isAnimating = false;
+    let isPaused = false;
+    let animationController = null;
+    let isRecording = false;
+    let recordedFrames = [];
+    let selectedDownloadType = 'png';
+    let selectedWebMResolution = '1280x720';
 
-        // ✅ CORE: Convert backtick content to LaTeX (with piecewise support)
-        function renderMathInBackticks(text) {
-            return text.replace(/`([^`]+)`/g, (match, content) => {
-                content = content.trim();
+    // =============== Math Processing Logic (from handnimation.html) ===============
+    function convertIntegralSpec(spec) {
+        spec = spec.trim();
+        if (!spec.startsWith('int')) return null;
+        const parts = spec.split(',').map(p => p.trim());
+        if (parts.length < 2) return null;
+        const integrals = parts.map(part => {
+            if (!part.startsWith('int')) return null;
+            let lower = '', upper = '';
+            const lowerMatch = part.match(/_({[^}]+}|[^_^,\s]+)/);
+            const upperMatch = part.match(/\^({[^}]+}|[^_^,\s]+)/);
+            if (lowerMatch) lower = lowerMatch[1];
+            if (upperMatch) upper = upperMatch[1];
+            return { lower, upper };
+        }).filter(x => x);
+        if (integrals.length < 2) return null;
+        return integrals.map(({lower, upper}) => {
+            let s = '\\int';
+            if (lower) s += `_{${lower}}`;
+            if (upper) s += `^{${upper}}`;
+            return s;
+        }).join(' ');
+    }
 
-                // Remove outer { } if present (e.g., `{x, if x>0; ...}`)
-                if (content.startsWith('{') && content.endsWith('}')) {
-                    content = content.slice(1, -1).trim();
-                }
+    // ✅ FIXED: enhanceSimpleMath now supports spaced rational expressions like (x + 1)/(x^2 - 4)
+    function enhanceSimpleMath(content) {
+        if (content.includes('\\frac') || content.includes('{')) return content;
 
-                // Detect piecewise: must have "if" and ";"
-                if (content.includes('if') && content.includes(';')) {
-                    const cases = content.split(/\s*;\s*/).map(c => c.trim()).filter(c => c);
-                    const texLines = [];
-
-                    for (let c of cases) {
-                        // Try to split at ", if" first (your preferred format)
-                        const commaIfIndex = c.search(/,\s*if\s+/i);
-                        if (commaIfIndex !== -1) {
-                            const expr = c.substring(0, commaIfIndex).trim();
-                            const cond = c.substring(commaIfIndex + 1).trim().replace(/^if\s+/i, '');
-                            texLines.push(`${expr} & \\text{if } ${cond}`);
-                        } else {
-                            // Fallback: split at "if" without comma
-                            const parts = c.split(/\s+if\s+/i);
-                            if (parts.length === 2) {
-                                const expr = parts[0].trim();
-                                const cond = parts[1].trim();
-                                texLines.push(`${expr} & \\text{if } ${cond}`);
-                            } else {
-                                // Invalid → treat as inline math
-                                return `$${content}$`;
-                            }
-                        }
-                    }
-
-                    if (texLines.length > 0) {
-                        return `$\\begin{cases} ${texLines.join(' \\\\ ')} \\end{cases}$`;
-                    }
-                }
-
-                // Not piecewise → inline TeX
-                return `$${content}$`;
-            });
+        // Handle top-level a / b (even with spaces), only if exactly one top-level slash
+        let depth = 0;
+        let slashPos = -1;
+        for (let i = 0; i < content.length; i++) {
+            if (content[i] === '(') depth++;
+            else if (content[i] === ')') depth--;
+            else if (content[i] === '/' && depth === 0) {
+                if (slashPos !== -1) return content; // multiple top-level slashes → skip
+                slashPos = i;
+            }
         }
 
-        // ✅ Animation with full typing + hand + cursor
-        async function startAnimation() {
-            if (isAnimating) return;
-            isAnimating = true;
-            isPaused = false;
-            animationController = { cancelled: false };
-
-            const inputText = document.getElementById('input').value;
-            if (!inputText) {
-                isAnimating = false;
-                return;
+        if (slashPos !== -1) {
+            const num = content.substring(0, slashPos).trim();
+            const den = content.substring(slashPos + 1).trim();
+            if (num && den) {
+                return `\\frac{${num}}{${den}}`;
             }
+        }
 
-            const output = document.getElementById('output');
-            const startBtn = document.getElementById('start-btn');
-            const playPauseBtn = document.getElementById('play-pause-btn');
+        // Fallback: inner (a/b) without spaces
+        let result = content;
+        let changed;
+        do {
+            changed = false;
+            result = result.replace(/\(([^()\s\/\+\-][^()]*?)\/([^()\s\/\+\-][^()]*?)\)/g, (match, num, den) => {
+                if (num && den && !num.includes(' ') && !den.includes(' ')) {
+                    changed = true;
+                    return `\\frac{${num}}{${den}}`;
+                }
+                return match;
+            });
+        } while (changed);
+        return result;
+    }
 
-            startBtn.disabled = true;
-            playPauseBtn.textContent = '⏸️';
-            output.classList.remove('finished');
-            output.innerHTML = currentOutput;
+    // ✅ FULLY FIXED: Handles radicals with nested fractions and parentheses
+    function processParenContent(content) {
+        let normalized = content.trim();
+        // Remove redundant outer parentheses
+        while (normalized.startsWith('(') && normalized.endsWith(')')) {
+            let depth = 0;
+            let invalid = false;
+            for (let i = 1; i < normalized.length - 1; i++) {
+                if (normalized[i] === '(') depth++;
+                else if (normalized[i] === ')') {
+                    depth--;
+                    if (depth < 0) { invalid = true; break; }
+                }
+            }
+            if (!invalid && depth === 0) {
+                normalized = normalized.slice(1, -1);
+            } else {
+                break;
+            }
+        }
 
-            const hand = document.createElement('span');
-            hand.id = 'hand';
-            hand.textContent = '✍️';
-            hand.style.opacity = '1';
-            output.appendChild(hand);
+        // 1. Integral spec?
+        const integralLaTeX = convertIntegralSpec(normalized);
+        if (integralLaTeX) return integralLaTeX;
 
-            let currentText = currentOutput ? currentOutput + '<br>' : '';
-            const speed = parseFloat(document.getElementById('speed-slider').value);
-            const charDelay = 50 / speed;
+        // 2. ✅ PIECEWISE: detect { ... } with "if" and ";"
+        if (normalized.startsWith('{') && normalized.endsWith('}') && normalized.includes('if') && normalized.includes(';')) {
+            const inner = normalized.slice(1, -1);
+            const cases = inner.split(/\s*;\s*/).map(c => c.trim()).filter(c => c);
+            const texLines = [];
+            for (const c of cases) {
+                const match = c.match(/^([^,]+?)\s*,?\s+if\s+(.+)$/i);
+                if (match) {
+                    texLines.push(`${match[1].trim()} & \\text{if } ${match[2].trim()}`);
+                } else {
+                    texLines.push(`${c} & \\text{ }`);
+                }
+            }
+            if (texLines.length > 0) {
+                return `\\begin{cases} ${texLines.join(' \\\\ ')} \\end{cases}`;
+            }
+        }
 
-            // Animate each character
-            for (let i = 0; i < inputText.length; i++) {
+        // 3. ✅ Allow one level of balanced parentheses in radical arguments
+        // Pattern: (?:[^()]|\([^)]*\))*
+        const innerRadicalPattern = "(?:[^()]|\\([^)]*\\))*";
+
+        let processed = normalized;
+
+        // sqrt(...)
+        processed = processed.replace(new RegExp(`sqrt\\s*\\(\\s*(${innerRadicalPattern})\\s*\\)`, 'g'), (match, inner) => {
+            return `\\sqrt{${enhanceSimpleMath(inner)}}`;
+        });
+
+        // √(...)
+        processed = processed.replace(new RegExp(`√\\s*\\(\\s*(${innerRadicalPattern})\\s*\\)`, 'g'), (match, inner) => {
+            return `\\sqrt{${enhanceSimpleMath(inner)}}`;
+        });
+
+        // ∛(...)
+        processed = processed.replace(new RegExp(`∛\\s*\\(\\s*(${innerRadicalPattern})\\s*\\)`, 'g'), (match, inner) => {
+            return `\\sqrt[3]{${enhanceSimpleMath(inner)}}`;
+        });
+
+        // root(n)(...)
+        processed = processed.replace(new RegExp(`root\\s*\\(\\s*([^)]+?)\\s*\\)\\s*\\(\\s*(${innerRadicalPattern})\\s*\\)`, 'g'), (match, n, inner) => {
+            return `\\sqrt[${n}]{${enhanceSimpleMath(inner)}}`;
+        });
+
+        // 4. Finally, enhance top-level fractions (e.g., for ((x+1)/2) outside radicals)
+        processed = enhanceSimpleMath(processed);
+
+        return processed;
+    }
+
+    async function renderMathSafely(latex, display=false) {
+        // Render into offscreen buffer to keep things in-memory first
+        const buffer = document.getElementById('math-render-buffer');
+        const wrapper = document.createElement('span');
+        // if display requested, use display delimiters so MathJax renders display mode
+        wrapper.innerHTML = display ? `\\[${latex.replace(/^\$|\$$/g,'')}\\]` : `$${latex.replace(/^\$|\$$/g,'')}$`;
+        buffer.appendChild(wrapper);
+        try {
+            await MathJax.typesetPromise([wrapper]);
+            const rendered = wrapper.cloneNode(true);
+            buffer.innerHTML = '';
+            // wrap it into a textbook wrapper
+            const outWrap = document.createElement(display ? 'div' : 'span');
+            outWrap.className = 'textbook-math' + (display ? ' display' : '');
+            // MathJax output inserted inside; clone to avoid reference issues
+            outWrap.appendChild(rendered.querySelector('.mjx-chtml') || rendered);
+            return outWrap;
+        } catch (e) {
+            console.error("Math render error:", e);
+            buffer.innerHTML = '';
+            const fallback = document.createElement('span');
+            fallback.textContent = latex;
+            fallback.style.color = 'orange';
+            fallback.className = 'textbook-math';
+            return fallback;
+        }
+    }
+
+    // Utility: returns index of matching '(' for ) at pos, or -1
+    function findMatchingOpen(fullInput, pos) {
+        let depth = 1;
+        let j = pos - 1;
+        while (j >= 0 && depth > 0) {
+            if (fullInput[j] === ')') depth++;
+            else if (fullInput[j] === '(') depth--;
+            j--;
+        }
+        return depth === 0 ? j + 1 : -1;
+    }
+
+    // =============== Auto-detect & render LaTeX everywhere ===============
+    // Finds $...$, $$...$$ and also heuristically wraps "bare" LaTeX tokens like \frac, \alpha, ^, _
+    // inside ordinary text so they render inline.
+    function tokenizeTextNodeForMath(text) {
+        // Matches $$...$$ first, then $...$, otherwise plain text.
+        const tokens = [];
+        let i = 0;
+        while (i < text.length) {
+            const twoDollar = text.indexOf('$$', i);
+            const oneDollar = text.indexOf('$', i);
+            if (twoDollar === -1 && oneDollar === -1) {
+                // no delimiters: return remainder for heuristics (bare-latex)
+                tokens.push({type:'text', value: text.slice(i)});
+                break;
+            }
+            // prefer earliest delimiter
+            let next = -1, delim=''; 
+            if (twoDollar !== -1 && (oneDollar === -1 || twoDollar <= oneDollar)) {
+                next = twoDollar; delim = '$$';
+            } else {
+                next = oneDollar; delim = '$';
+            }
+            if (next > i) tokens.push({type:'text', value: text.slice(i, next)});
+            const close = text.indexOf(delim, next + delim.length);
+            if (close === -1) {
+                // no close - treat as text
+                tokens.push({type:'text', value: text.slice(next)});
+                break;
+            } else {
+                const content = text.slice(next + delim.length, close);
+                tokens.push({type: 'math', value: content, display: delim === '$$'});
+                i = close + delim.length;
+            }
+        }
+        return tokens;
+    }
+
+    // Heuristic: find bare LaTeX tokens like \frac{...}{...}, \alpha, ^2, _i, \sqrt{...}, \int, \sum
+    const bareLatexRegex = /\\(?:frac|sqrt|alpha|beta|gamma|pi|infty|int|sum|cdot|leq|geq|neq|times)\b(?:\{[^}]*\})?(?:\{[^}]*\})?|[A-Za-z0-9]+_[A-Za-z0-9\{\}]+|[A-Za-z0-9\}\{]+\^[A-Za-z0-9\{\}]+/g;
+
+    // Walk DOM under `root` and replace text nodes with a mix of text and math spans
+    async function scanAndRenderMath(root) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+        const textNodes = [];
+        while (walker.nextNode()) {
+            textNodes.push(walker.currentNode);
+        }
+        for (const tn of textNodes) {
+            const txt = tn.nodeValue;
+            if (!txt || txt.trim() === '') continue;
+            // First handle explicit $ and $$ tokens
+            const tokens = tokenizeTextNodeForMath(txt);
+            // If there is nothing special and no heuristic bare latex, skip
+            if (tokens.length === 1 && tokens[0].type === 'text' && !bareLatexRegex.test(tokens[0].value)) continue;
+
+            const frag = document.createDocumentFragment();
+            for (const tk of tokens) {
+                if (tk.type === 'text') {
+                    let lastIndex = 0;
+                    bareLatexRegex.lastIndex = 0;
+                    let m;
+                    // replace found bare-latex substrings in the text chunk
+                    while ((m = bareLatexRegex.exec(tk.value)) !== null) {
+                        const before = tk.value.slice(lastIndex, m.index);
+                        if (before) frag.appendChild(document.createTextNode(before));
+                        const latex = m[0];
+                        // placeholder span with data-latex
+                        const placeholder = document.createElement('span');
+                        placeholder.dataset.latex = latex;
+                        placeholder.dataset.display = 'false';
+                        placeholder.className = 'textbook-math';
+                        frag.appendChild(placeholder);
+                        lastIndex = bareLatexRegex.lastIndex;
+                    }
+                    const after = tk.value.slice(lastIndex);
+                    if (after) frag.appendChild(document.createTextNode(after));
+                } else if (tk.type === 'math') {
+                    // tk.value is the raw latex between delimiters
+                    const placeholder = document.createElement(tk.display ? 'div' : 'span');
+                    placeholder.dataset.latex = tk.value;
+                    placeholder.dataset.display = tk.display ? 'true' : 'false';
+                    placeholder.className = 'textbook-math' + (tk.display ? ' display' : '');
+                    frag.appendChild(placeholder);
+                }
+            }
+            tn.parentNode.replaceChild(frag, tn);
+        }
+
+        // Now render each placeholder by calling MathJax on them (in-memory)
+        const placeholders = root.querySelectorAll('span[data-latex], div[data-latex]');
+        // render sequentially to avoid race conditions
+        for (const ph of placeholders) {
+            const latex = ph.dataset.latex;
+            const display = ph.dataset.display === 'true';
+            const rendered = await renderMathSafely(latex, display);
+            // replace placeholder with rendered node
+            ph.replaceWith(rendered);
+        }
+    }
+
+    async function typesetMathJax() {
+        // For backwards compatibility: typeset whole output if needed
+        try {
+            await MathJax.typesetPromise([document.getElementById('output')]);
+        } catch (err) {
+            console.error('MathJax error:', err);
+        }
+    }
+
+    // =============== Animation (No Backticks) ===============
+    async function startAnimation() {
+        if (isAnimating) return;
+        isAnimating = true;
+        isPaused = false;
+        animationController = { cancelled: false };
+
+        const fullInput = document.getElementById('input').value;
+        if (!fullInput) {
+            isAnimating = false;
+            return;
+        }
+
+        const output = document.getElementById('output');
+        const startBtn = document.getElementById('start-btn');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+
+        startBtn.disabled = true;
+        playPauseBtn.textContent = '⏸️';
+        output.classList.remove('finished');
+        output.innerHTML = currentOutput;
+
+        const hand = document.createElement('span');
+        hand.id = 'hand';
+        hand.textContent = '✍️';
+        hand.style.opacity = '1';
+        output.appendChild(hand);
+
+        let displayedNodes = [];
+        let i = 0;
+        const parenStack = [];
+
+        const updateDisplay = () => {
+            output.innerHTML = '';
+            displayedNodes.forEach(node => {
+                if (typeof node === 'string') {
+                    output.appendChild(document.createTextNode(node));
+                } else {
+                    output.appendChild(node);
+                }
+            });
+            const c = document.createElement('span');
+            c.id = 'cursor';
+            output.appendChild(c);
+        };
+
+        const speed = parseFloat(document.getElementById('speed-slider').value);
+        const charDelay = 50 / speed;
+
+        while (i < fullInput.length) {
+            if (animationController.cancelled) break;
+            if (isPaused) {
+                while (isPaused && !animationController.cancelled) {
+                    await delay(100);
+                }
                 if (animationController.cancelled) break;
-                if (isPaused) {
-                    while (isPaused && !animationController.cancelled) {
-                        await delay(100);
+            }
+
+            const char = fullInput[i];
+
+            if (char === '(') {
+                parenStack.push(displayedNodes.length);
+                displayedNodes.push(char);
+            } else if (char === ')') {
+                if (parenStack.length > 0) {
+                    const openDisplayIndex = parenStack.pop();
+                    const openInputIndex = findMatchingOpen(fullInput, i);
+                    if (openInputIndex !== -1) {
+                        const content = fullInput.substring(openInputIndex + 1, i);
+                        const processed = processParenContent(content);
+                        const latex = `${processed}`; // we'll render without extra dollar signs because renderMathSafely wraps
+                        const renderedMath = await renderMathSafely(latex, false);
+                        displayedNodes.length = openDisplayIndex;
+                        displayedNodes.push(renderedMath);
+                    } else {
+                        displayedNodes.push(char);
                     }
-                    if (animationController.cancelled) break;
+                } else {
+                    displayedNodes.push(char);
                 }
-
-                currentText += inputText[i];
-                output.innerHTML = currentText + '<span id="cursor"></span>';
-                output.appendChild(hand);
-                updateHandPosition(hand);
-                await captureFrame();
-                await delay(charDelay);
-            }
-
-            // ✅ After typing: convert backticks to LaTeX and render
-            if (!animationController.cancelled) {
-                const finalProcessed = renderMathInBackticks(currentText);
-                output.innerHTML = finalProcessed;
-                output.appendChild(hand);
-                updateHandPosition(hand);
-                await typesetMathJax();
-                output.classList.add('finished');
-                await captureFrame();
-                await delay(1000);
-                hand.remove();
-
-                entries.push(inputText);
-                undoStack.push([...entries]);
-                redoStack = [];
-                history.push({
-                    title: `Entry ${history.length + 1}`,
-                    description: inputText,
-                    date: new Date().toLocaleDateString(),
-                    time: new Date().toLocaleTimeString()
-                });
-                localStorage.setItem('mathHistory', JSON.stringify(history));
-                currentOutput = finalProcessed;
-            }
-
-            startBtn.disabled = false;
-            playPauseBtn.textContent = '▶️';
-            isAnimating = false;
-            animationController = null;
-        }
-
-        // ✅ Supporting functions
-        async function captureFrame() {
-            if (!isRecording) return;
-            const output = document.getElementById('output');
-            const canvas = await html2canvas(output, {
-                scale: 1,
-                backgroundColor: 'lawngreen'
-            });
-            recordedFrames.push({
-                timestamp: performance.now(),
-                dataUrl: canvas.toDataURL('image/png')
-            });
-        }
-
-        async function typesetMathJax() {
-            try {
-                await MathJax.typesetPromise([document.getElementById('output')]);
-            } catch (err) {
-                console.error('MathJax error:', err);
-            }
-        }
-
-        function updateHandPosition(hand) {
-            const cursor = document.getElementById('cursor');
-            const output = document.getElementById('output');
-            const outputRect = output.getBoundingClientRect();
-            let rect;
-            if (cursor) {
-                rect = cursor.getBoundingClientRect();
+            } else if (char === '$') {
+                // detect $...$ or $$...$$ inline while animating
+                // find whether it's $$ or $
+                const isDouble = fullInput[i+1] === '$';
+                const delim = isDouble ? '$$' : '$';
+                const closeIndex = fullInput.indexOf(delim, i + delim.length);
+                if (closeIndex !== -1) {
+                    const content = fullInput.substring(i + delim.length, closeIndex);
+                    const renderedMath = await renderMathSafely(content, delim === '$$');
+                    displayedNodes.push(renderedMath);
+                    i = closeIndex; // loop will increment i++ below
+                } else {
+                    displayedNodes.push(char);
+                }
             } else {
-                const range = document.createRange();
-                range.selectNodeContents(output);
-                range.collapse(false);
-                const temp = document.createElement('span');
-                range.insertNode(temp);
-                rect = temp.getBoundingClientRect();
-                temp.remove();
+                // ❌ NO BACKTICKS — just plain text
+                displayedNodes.push(char);
             }
-            let left = rect.left - outputRect.left + 15;
-            let top = rect.top - outputRect.top - 5;
-            left = Math.max(0, Math.min(left, outputRect.width - hand.offsetWidth));
-            hand.style.left = left + 'px';
-            hand.style.top = top + 'px';
+
+            updateDisplay();
+            output.appendChild(hand);
+            updateHandPosition(hand);
+            // Capture frame for recording if active
+            await captureFrame();
+            await delay(charDelay);
+            i++;
         }
 
-        // ✅ UI Controls
-        function playPauseAnimation() {
-            if (!isAnimating) {
-                startAnimation();
-            } else {
-                isPaused = !isPaused;
-                document.getElementById('play-pause-btn').textContent = isPaused ? '▶️' : '⏸️';
-            }
-        }
+        if (!animationController.cancelled) {
+            // before finishing, scan entire output for any bare LaTeX and render it
+            output.classList.add('finished');
+            await scanAndRenderMath(output); // this will replace any raw LaTeX found
+            await captureFrame();
+            await delay(1000);
+            hand.remove();
 
-        function stopAnimation() {
-            if (!isAnimating) return;
-            animationController.cancelled = true;
-            isPaused = false;
-            isAnimating = false;
-            const output = document.getElementById('output');
-            output.innerHTML = currentOutput;
-            output.classList.remove('finished');
-            const hand = document.querySelector('#hand');
-            if (hand) hand.remove();
-            document.getElementById('start-btn').disabled = false;
-            document.getElementById('play-pause-btn').textContent = '▶️';
-            typesetMathJax();
-        }
-
-        function undo() {
-            if (undoStack.length) {
-                redoStack.push([...entries]);
-                entries = undoStack.pop();
-                const raw = entries.join('<br>');
-                const processed = renderMathInBackticks(raw);
-                currentOutput = processed;
-                document.getElementById('output').innerHTML = processed;
-                typesetMathJax();
-            }
-        }
-
-        function redo() {
-            if (redoStack.length) {
-                undoStack.push([...entries]);
-                entries = redoStack.pop();
-                const raw = entries.join('<br>');
-                const processed = renderMathInBackticks(raw);
-                currentOutput = processed;
-                document.getElementById('output').innerHTML = processed;
-                typesetMathJax();
-            }
-        }
-
-        function clearOutput() {
-            entries = [];
-            undoStack = [];
+            entries.push(fullInput);
+            undoStack.push([...entries]);
             redoStack = [];
-            currentOutput = '';
-            document.getElementById('output').innerHTML = '';
+            history.push({
+                title: `Entry ${history.length + 1}`,
+                description: fullInput,
+                date: new Date().toLocaleDateString(),
+                time: new Date().toLocaleTimeString()
+            });
+            localStorage.setItem('mathHistory', JSON.stringify(history));
+            // reserialize rendered output
+            // We clone the output nodes to currentOutput
+            currentOutput = output.innerHTML;
         }
 
-        function toggleRecording() {
-            isRecording = !isRecording;
-            const btn = document.getElementById('record-btn');
-            if (isRecording) {
-                recordedFrames = [];
-                btn.textContent = '⏹️ Finish';
-                btn.classList.add('recording');
-            } else {
-                btn.textContent = '⏺️ Record';
-                btn.classList.remove('recording');
-            }
+        startBtn.disabled = false;
+        playPauseBtn.textContent = '▶️';
+        isAnimating = false;
+        animationController = null;
+    }
+
+    // =============== Preserve All Existing Helpers ===============
+    async function captureFrame() {
+        if (!isRecording) return;
+        const output = document.getElementById('output');
+        const canvas = await html2canvas(output, {
+            scale: 1,
+            backgroundColor: 'lawngreen'
+        });
+        recordedFrames.push({
+            timestamp: performance.now(),
+            dataUrl: canvas.toDataURL('image/png')
+        });
+    }
+
+    function updateHandPosition(hand) {
+        const cursor = document.getElementById('cursor');
+        const output = document.getElementById('output');
+        const outputRect = output.getBoundingClientRect();
+        let rect;
+        if (cursor) {
+            rect = cursor.getBoundingClientRect();
+        } else {
+            const range = document.createRange();
+            range.selectNodeContents(output);
+            range.collapse(false);
+            const temp = document.createElement('span');
+            range.insertNode(temp);
+            rect = temp.getBoundingClientRect();
+            temp.remove();
+        }
+        let left = rect.left - outputRect.left + 15;
+        let top = rect.top - outputRect.top - 5;
+        left = Math.max(0, Math.min(left, outputRect.width - hand.offsetWidth));
+        hand.style.left = left + 'px';
+        hand.style.top = top + 'px';
+    }
+
+    function playPauseAnimation() {
+        if (!isAnimating) {
+            startAnimation();
+        } else {
+            isPaused = !isPaused;
+            document.getElementById('play-pause-btn').textContent = isPaused ? '▶️' : '⏸️';
+        }
+    }
+
+    function stopAnimation() {
+        if (!isAnimating) return;
+        animationController.cancelled = true;
+        isPaused = false;
+        isAnimating = false;
+        const output = document.getElementById('output');
+        output.innerHTML = currentOutput;
+        output.classList.remove('finished');
+        const hand = document.querySelector('#hand');
+        if (hand) hand.remove();
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('play-pause-btn').textContent = '▶️';
+        // ensure math in currentOutput is rendered
+        scanAndRenderMath(output).catch(console.error);
+    }
+
+    function undo() {
+        if (undoStack.length) {
+            redoStack.push([...entries]);
+            entries = undoStack.pop();
+            currentOutput = entries.map(entry => entry).join('<br>');
+            document.getElementById('output').innerHTML = currentOutput;
+            scanAndRenderMath(document.getElementById('output')).catch(console.error);
+        }
+    }
+
+    function redo() {
+        if (redoStack.length) {
+            undoStack.push([...entries]);
+            entries = redoStack.pop();
+            currentOutput = entries.map(entry => entry).join('<br>');
+            document.getElementById('output').innerHTML = currentOutput;
+            scanAndRenderMath(document.getElementById('output')).catch(console.error);
+        }
+    }
+
+    function clearOutput() {
+        entries = [];
+        undoStack = [];
+        redoStack = [];
+        currentOutput = '';
+        document.getElementById('output').innerHTML = '';
+    }
+
+    function toggleRecording() {
+        isRecording = !isRecording;
+        const btn = document.getElementById('record-btn');
+        if (isRecording) {
+            recordedFrames = [];
+            btn.textContent = '⏹️ Finish';
+            btn.classList.add('recording');
+        } else {
+            btn.textContent = '⏺️ Record';
+            btn.classList.remove('recording');
+        }
+    }
+
+    function handleDownloadFormatChange() {
+        const format = document.getElementById('download-format').value;
+        selectedDownloadType = format;
+        const webmMenu = document.getElementById('webm-resolutions');
+        if (format === 'webm') {
+            const selectRect = document.getElementById('download-format').getBoundingClientRect();
+            webmMenu.innerHTML = `
+                <div onclick="selectWebMResolution('426x240')">240p (426x240)</div>
+                <div onclick="selectWebMResolution('640x360')">360p (640x360)</div>
+                <div onclick="selectWebMResolution('854x480')">480p (854x480)</div>
+                <div onclick="selectWebMResolution('1280x720')">720p (1280x720 - HD)</div>
+                <div onclick="selectWebMResolution('1920x1080')">1080p (1920x1080 - FHD)</div>
+            `;
+            webmMenu.style.display = 'block';
+            webmMenu.style.left = selectRect.left + 'px';
+            webmMenu.style.top = (selectRect.bottom + window.scrollY) + 'px';
+        } else {
+            webmMenu.style.display = 'none';
+        }
+    }
+
+    function selectWebMResolution(res) {
+        selectedWebMResolution = res;
+        document.getElementById('webm-resolutions').style.display = 'none';
+    }
+
+    async function downloadOutput() {
+        if (isAnimating && !isPaused) {
+            alert('Please wait until animation finishes.');
+            return;
         }
 
-        function handleDownloadFormatChange() {
-            const format = document.getElementById('download-format').value;
-            selectedDownloadType = format;
-            const webmMenu = document.getElementById('webm-resolutions');
-            if (format === 'webm') {
-                const selectRect = document.getElementById('download-format').getBoundingClientRect();
-                webmMenu.innerHTML = `
-                    <div onclick="selectWebMResolution('426x240')">240p (426x240)</div>
-                    <div onclick="selectWebMResolution('640x360')">360p (640x360)</div>
-                    <div onclick="selectWebMResolution('854x480')">480p (854x480)</div>
-                    <div onclick="selectWebMResolution('1280x720')">720p (1280x720 - HD)</div>
-                    <div onclick="selectWebMResolution('1920x1080')">1080p (1920x1080 - FHD)</div>
-                `;
-                webmMenu.style.display = 'block';
-                webmMenu.style.left = selectRect.left + 'px';
-                webmMenu.style.top = (selectRect.bottom + window.scrollY) + 'px';
-            } else {
-                webmMenu.style.display = 'none';
-            }
-        }
-
-        function selectWebMResolution(res) {
-            selectedWebMResolution = res;
-            document.getElementById('webm-resolutions').style.display = 'none';
-        }
-
-        async function downloadOutput() {
-            if (isAnimating && !isPaused) {
-                alert('Please wait until animation finishes.');
+        const output = document.getElementById('output');
+        if (selectedDownloadType === 'png' || selectedDownloadType === 'jpg') {
+            const canvas = await html2canvas(output, {
+                backgroundColor: 'lawngreen',
+                scale: 2
+            });
+            const mime = selectedDownloadType === 'jpg' ? 'image/jpeg' : 'image/png';
+            const url = canvas.toDataURL(mime, selectedDownloadType === 'jpg' ? 0.92 : 1.0);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `math_output.${selectedDownloadType}`;
+            a.click();
+        } else if (selectedDownloadType === 'gif' || selectedDownloadType === 'webm') {
+            if (recordedFrames.length === 0) {
+                alert('No animation recorded. Click "Record", then "Start Animation".');
                 return;
             }
-
-            const output = document.getElementById('output');
-            if (selectedDownloadType === 'png' || selectedDownloadType === 'jpg') {
-                const canvas = await html2canvas(output, {
-                    backgroundColor: 'lawngreen',
-                    scale: 2
-                });
-                const mime = selectedDownloadType === 'jpg' ? 'image/jpeg' : 'image/png';
-                const url = canvas.toDataURL(mime, selectedDownloadType === 'jpg' ? 0.92 : 1.0);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `math_output.${selectedDownloadType}`;
-                a.click();
-            } else if (selectedDownloadType === 'gif' || selectedDownloadType === 'webm') {
-                if (recordedFrames.length === 0) {
-                    alert('No animation recorded. Click "Record", then "Start Animation".');
-                    return;
-                }
-                alert(`${selectedDownloadType.toUpperCase()} export is ready for integration.`);
-            }
+            alert(`${selectedDownloadType.toUpperCase()} export is ready for integration.`);
         }
+    }
 
-        function showDialog(id) {
-            document.getElementById(id + 'Dialog').showModal();
-            if (id === 'history') {
-                populateHistory();
-            }
+    function showDialog(id) {
+        document.getElementById(id + 'Dialog').showModal();
+        if (id === 'history') {
+            populateHistory();
         }
+    }
 
-        function closeDialog(id) {
-            document.getElementById(id + 'Dialog').close();
-        }
+    function closeDialog(id) {
+        document.getElementById(id + 'Dialog').close();
+    }
 
-        function populateHistory() {
-            const tbody = document.getElementById('historyBody');
-            tbody.innerHTML = '';
-            history.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${item.title}</td>
-                    <td>${item.description}</td>
-                    <td>${item.date}</td>
-                    <td>${item.time}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
+    function populateHistory() {
+        const tbody = document.getElementById('historyBody');
+        tbody.innerHTML = '';
+        history.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.title}</td>
+                <td>${item.description}</td>
+                <td>${item.date}</td>
+                <td>${item.time}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
 
-        function delay(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // If page loads with some existing output HTML, auto-scan and render it
+    window.addEventListener('load', () => {
+        const output = document.getElementById('output');
+        if (output && output.innerHTML.trim() !== '') {
+            scanAndRenderMath(output).catch(console.error);
         }
-    </script>
+    });
+</script>
 </body>
 </html>
